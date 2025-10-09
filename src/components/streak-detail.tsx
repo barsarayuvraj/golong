@@ -124,6 +124,7 @@ export default function StreakDetailPage() {
           <div className="text-sm text-gray-500 mb-4">
             <p>Streak ID: {streakId}</p>
             <p>Error: {streakError}</p>
+            <p>Please check the browser console for more details.</p>
           </div>
           <Link href="/explore">
             <Button>Back to Explore</Button>

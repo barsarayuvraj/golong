@@ -6,16 +6,22 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    console.log('GET /api/streaks/[id] - Starting request')
+    
     const supabase = await createClient()
+    console.log('Supabase client created successfully')
     
     // Get the current user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
+    console.log('Auth check - User:', user ? 'Found' : 'Not found', 'Error:', authError)
     
     if (authError || !user) {
+      console.log('Authentication failed, returning 401')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { id: streakId } = await params
+    console.log('Fetching streak with ID:', streakId)
 
     // Get the streak with creator info
     const { data: streak, error: streakError } = await supabase
@@ -35,8 +41,14 @@ export async function GET(
 
     if (streakError) {
       console.error('Error fetching streak:', streakError)
-      return NextResponse.json({ error: 'Streak not found' }, { status: 404 })
+      return NextResponse.json({ 
+        error: 'Streak not found',
+        details: streakError.message,
+        code: streakError.code
+      }, { status: 404 })
     }
+
+    console.log('Streak found:', streak?.title)
 
     // Get user's participation status
     const { data: userStreak, error: userStreakError } = await supabase
@@ -48,9 +60,10 @@ export async function GET(
 
     if (userStreakError && userStreakError.code !== 'PGRST116') {
       console.error('Error fetching user streak:', userStreakError)
-      return NextResponse.json({ error: 'Failed to fetch user streak data' }, { status: 500 })
+      // Don't fail the request for this, just log the error
     }
 
+    console.log('Returning streak data successfully')
     return NextResponse.json({ 
       streak,
       user_streak: userStreak || null
@@ -59,7 +72,8 @@ export async function GET(
   } catch (error) {
     console.error('Error in get streak API:', error)
     return NextResponse.json({ 
-      error: 'Internal server error' 
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 })
   }
 }
