@@ -9,6 +9,8 @@ import { createClient } from '@/lib/supabase-client'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { useRealtimeNotifications } from '@/lib/use-realtime'
 import { motion } from 'framer-motion'
+import { useNotifications, useMarkNotificationAsRead, useMarkAllNotificationsAsRead } from '@/hooks/useApi'
+import { toast } from 'sonner'
 
 interface Notification {
   id: string
@@ -21,18 +23,24 @@ interface Notification {
 }
 
 export function NotificationsDropdown() {
-  const [notifications, setNotifications] = useState<Notification[]>([])
-  const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const supabase = createClient()
   
+  // Use our custom hooks
+  const { data: notificationsData, loading, error, refetch } = useNotifications({ limit: 20 })
+  const { markAsRead, loading: markingAsRead } = useMarkNotificationAsRead()
+  const { markAllAsRead, loading: markingAllAsRead } = useMarkAllNotificationsAsRead()
+  
+  const notifications = notificationsData?.notifications || []
+  const unreadCount = notificationsData?.unread_count || 0
+  
   // Use real-time notifications hook
   const {
     notifications: realtimeNotifications,
-    unreadCount,
+    unreadCount: realtimeUnreadCount,
     connectionStatus,
     markAsRead: markRealtimeAsRead,
     markAllAsRead: markAllRealtimeAsRead,
@@ -44,31 +52,8 @@ export function NotificationsDropdown() {
     fetchUser()
   }, [])
 
-  useEffect(() => {
-    if (user) {
-      fetchNotifications()
-      // Set up real-time subscription
-      const channel = supabase
-        .channel('notifications')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'notifications',
-            filter: `user_id=eq.${user.id}`,
-          },
-          () => {
-            fetchNotifications()
-          }
-        )
-        .subscribe()
-
-      return () => {
-        supabase.removeChannel(channel)
-      }
-    }
-  }, [user])
+  // Real-time subscription is handled by the useRealtimeNotifications hook
+  // No need for manual subscription setup here
 
   // Click outside to close dropdown
   useEffect(() => {
@@ -92,80 +77,25 @@ export function NotificationsDropdown() {
     setUser(user)
   }
 
-  const fetchNotifications = async () => {
-    if (!user) return
 
+  const handleMarkAsRead = async (notificationId: string) => {
     try {
-      setLoading(true)
-      const response = await fetch('/api/notifications?limit=20')
-      const result = await response.json()
-
-      if (response.ok) {
-        setNotifications(result.notifications || [])
-        setUnreadCount(result.unreadCount || 0)
-      } else {
-        console.error('Error fetching notifications:', result.error)
-        setNotifications([])
-        setUnreadCount(0)
-      }
+      await markAsRead(notificationId)
+      toast.success('Notification marked as read')
+      refetch() // Refresh notifications
     } catch (error) {
-      console.error('Error fetching notifications:', error)
-      setNotifications([])
-      setUnreadCount(0)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const markAsRead = async (notificationId: string) => {
-    try {
-      const response = await fetch(`/api/notifications?notification_id=${notificationId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          read: true
-        })
-      })
-
-      const result = await response.json()
-
-      if (response.ok) {
-        setNotifications(prev =>
-          prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
-        )
-        setUnreadCount(prev => Math.max(0, prev - 1))
-      } else {
-        console.error('Error marking notification as read:', result.error)
-      }
-    } catch (error) {
+      toast.error('Failed to mark notification as read')
       console.error('Error marking notification as read:', error)
     }
   }
 
-  const markAllAsRead = async () => {
-    if (!user) return
-
+  const handleMarkAllAsRead = async () => {
     try {
-      // Mark all unread notifications as read
-      const unreadNotifications = notifications.filter(n => !n.read)
-      
-      for (const notification of unreadNotifications) {
-        await fetch(`/api/notifications?notification_id=${notification.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            read: true
-          })
-        })
-      }
-
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-      setUnreadCount(0)
+      await markAllAsRead()
+      toast.success('All notifications marked as read')
+      refetch() // Refresh notifications
     } catch (error) {
+      toast.error('Failed to mark all notifications as read')
       console.error('Error marking all notifications as read:', error)
     }
   }
@@ -218,7 +148,7 @@ export function NotificationsDropdown() {
             <CardTitle className="text-lg">Notifications</CardTitle>
             <div className="flex items-center gap-2">
               {unreadCount > 0 && (
-                <Button variant="ghost" size="sm" onClick={markAllAsRead}>
+                <Button variant="ghost" size="sm" onClick={handleMarkAllAsRead}>
                   <Check className="h-4 w-4 mr-1" />
                   Mark all read
                 </Button>
@@ -247,7 +177,7 @@ export function NotificationsDropdown() {
                     !notification.read ? 'bg-blue-50 border-l-2 border-blue-500' : ''
                   }`}
                   onClick={() => {
-                    markAsRead(notification.id)
+                    handleMarkAsRead(notification.id)
                     setIsOpen(false)
                   }}
                 >

@@ -23,6 +23,7 @@ import {
 import { createClient } from '@/lib/supabase-client'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { motion } from 'framer-motion'
+import { toast } from 'sonner'
 
 interface Challenge {
   id: string
@@ -151,18 +152,33 @@ export function ChallengesSection() {
   const handleCreateChallenge = async () => {
     if (!user) return
 
+    // Validate required fields
+    if (!createData.name.trim()) {
+      toast.error('Challenge name is required')
+      return
+    }
+    if (!createData.description.trim()) {
+      toast.error('Challenge description is required')
+      return
+    }
+    if (!createData.category.trim()) {
+      toast.error('Challenge category is required')
+      return
+    }
+
     try {
       const { error } = await supabase
         .from('challenges')
         .insert({
           ...createData,
           created_by: user.id,
-          start_date: new Date(createData.start_date).toISOString(),
-          end_date: new Date(createData.end_date).toISOString()
+          start_date: createData.start_date ? new Date(createData.start_date).toISOString() : new Date().toISOString(),
+          end_date: createData.end_date ? new Date(createData.end_date).toISOString() : new Date(Date.now() + createData.duration_days * 24 * 60 * 60 * 1000).toISOString()
         })
 
       if (error) throw error
 
+      toast.success('Challenge created successfully!')
       setShowCreateDialog(false)
       setCreateData({
         name: '',
@@ -178,7 +194,80 @@ export function ChallengesSection() {
       fetchChallenges()
     } catch (error) {
       console.error('Error creating challenge:', error)
+      toast.error('Failed to create challenge')
     }
+  }
+
+  // Helper function to calculate end date from start date and duration
+  const calculateEndDate = (startDate: string, durationDays: number): string => {
+    if (!startDate) return ''
+    const start = new Date(startDate)
+    const end = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000)
+    return end.toISOString().split('T')[0]
+  }
+
+  // Helper function to calculate duration from start and end dates
+  const calculateDuration = (startDate: string, endDate: string): number => {
+    if (!startDate || !endDate) return 30
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    const diffTime = Math.abs(end.getTime() - start.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays
+  }
+
+  // Handle duration change - update end date
+  const handleDurationChange = (duration: number) => {
+    const startDate = createData.start_date || new Date().toISOString().split('T')[0]
+    const endDate = calculateEndDate(startDate, duration)
+    
+    setCreateData(prev => ({
+      ...prev,
+      duration_days: duration,
+      end_date: endDate
+    }))
+  }
+
+  // Handle start date change - update end date if duration is set
+  const handleStartDateChange = (startDate: string) => {
+    const endDate = createData.duration_days ? calculateEndDate(startDate, createData.duration_days) : ''
+    
+    setCreateData(prev => ({
+      ...prev,
+      start_date: startDate,
+      end_date: endDate
+    }))
+  }
+
+  // Handle end date change - update duration
+  const handleEndDateChange = (endDate: string) => {
+    const startDate = createData.start_date || new Date().toISOString().split('T')[0]
+    const duration = calculateDuration(startDate, endDate)
+    
+    setCreateData(prev => ({
+      ...prev,
+      end_date: endDate,
+      duration_days: duration
+    }))
+  }
+
+  // Handle opening create dialog with default values
+  const handleOpenCreateDialog = () => {
+    const today = new Date().toISOString().split('T')[0]
+    const defaultEndDate = calculateEndDate(today, 30)
+    
+    setCreateData({
+      name: '',
+      description: '',
+      category: '',
+      duration_days: 30,
+      start_date: today,
+      end_date: defaultEndDate,
+      max_participants: undefined,
+      prize_description: '',
+      rules: ''
+    })
+    setShowCreateDialog(true)
   }
 
   const handleJoinChallenge = async (challengeId: string) => {
@@ -271,7 +360,10 @@ export function ChallengesSection() {
         {user && (
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
             <DialogTrigger asChild>
-              <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+              <Button 
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                onClick={handleOpenCreateDialog}
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Create Challenge
               </Button>
@@ -328,7 +420,7 @@ export function ChallengesSection() {
                       id="duration"
                       type="number"
                       value={createData.duration_days}
-                      onChange={(e) => setCreateData({ ...createData, duration_days: parseInt(e.target.value) || 30 })}
+                      onChange={(e) => handleDurationChange(parseInt(e.target.value) || 30)}
                     />
                   </div>
                   <div>
@@ -337,7 +429,7 @@ export function ChallengesSection() {
                       id="start_date"
                       type="date"
                       value={createData.start_date}
-                      onChange={(e) => setCreateData({ ...createData, start_date: e.target.value })}
+                      onChange={(e) => handleStartDateChange(e.target.value)}
                     />
                   </div>
                   <div>
@@ -346,7 +438,7 @@ export function ChallengesSection() {
                       id="end_date"
                       type="date"
                       value={createData.end_date}
-                      onChange={(e) => setCreateData({ ...createData, end_date: e.target.value })}
+                      onChange={(e) => handleEndDateChange(e.target.value)}
                     />
                   </div>
                 </div>
@@ -390,7 +482,7 @@ export function ChallengesSection() {
           <h3 className="text-xl font-semibold mb-2">No Active Challenges</h3>
           <p className="text-gray-600 mb-4">Be the first to create a challenge!</p>
           {user && (
-            <Button onClick={() => setShowCreateDialog(true)}>
+            <Button onClick={handleOpenCreateDialog}>
               <Plus className="h-4 w-4 mr-2" />
               Create Challenge
             </Button>

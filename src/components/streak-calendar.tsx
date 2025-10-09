@@ -109,10 +109,13 @@ export function StreakCalendar() {
       const sixMonthsAgo = new Date()
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
 
+      // First get user streak IDs
+      const userStreakIds = streaks?.map(us => us.id) || []
+      
       const { data: checkins, error: checkinsError } = await supabase
         .from('checkins')
         .select('*')
-        .eq('user_id', user.id)
+        .in('user_streak_id', userStreakIds)
         .gte('created_at', sixMonthsAgo.toISOString())
 
       if (checkinsError) throw checkinsError
@@ -121,7 +124,7 @@ export function StreakCalendar() {
       const processedData: CalendarData = {}
       
       checkins?.forEach(checkin => {
-        const date = new Date(checkin.created_at).toISOString().split('T')[0]
+        const date = new Date(checkin.checkin_date).toISOString().split('T')[0]
         if (!processedData[date]) {
           processedData[date] = {
             checkins: [],
@@ -138,7 +141,7 @@ export function StreakCalendar() {
         if (selectedStreak === 'all' || userStreak.streak_id === selectedStreak) {
           // Add streak info to relevant dates
           Object.keys(processedData).forEach(date => {
-            if (processedData[date].checkins.some(c => c.streak_id === userStreak.streak_id)) {
+            if (processedData[date].checkins.some(c => c.user_streak_id === userStreak.id)) {
               if (!processedData[date].streaks.find(s => s.id === userStreak.id)) {
                 processedData[date].streaks.push(userStreak)
               }

@@ -10,6 +10,83 @@ const createStreakSchema = z.object({
   tags: z.array(z.string()).default([]),
 })
 
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+    
+    // Get the current user
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const limit = parseInt(searchParams.get('limit') || '20')
+    const offset = parseInt(searchParams.get('offset') || '0')
+    const category = searchParams.get('category')
+    const is_public = searchParams.get('is_public')
+
+    // Build query
+    let query = supabase
+      .from('streaks')
+      .select(`
+        *,
+        profiles:created_by (
+          id,
+          username,
+          display_name,
+          avatar_url
+        )
+      `)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
+
+    // Apply filters
+    if (category) {
+      query = query.eq('category', category)
+    }
+    if (is_public !== null) {
+      query = query.eq('is_public', is_public === 'true')
+    }
+
+    const { data: streaks, error: streaksError } = await query
+
+    if (streaksError) {
+      console.error('Error fetching streaks:', streaksError)
+      return NextResponse.json({ error: 'Failed to fetch streaks' }, { status: 500 })
+    }
+
+    // Get user's participation status for each streak
+    const streakIds = streaks.map(s => s.id)
+    const { data: userStreaks } = await supabase
+      .from('user_streaks')
+      .select('streak_id, current_streak_days, longest_streak_days, last_checkin_date, joined_at, is_active')
+      .eq('user_id', user.id)
+      .in('streak_id', streakIds)
+
+    // Combine streak data with user participation
+    const streaksWithUserData = streaks.map(streak => {
+      const userStreak = userStreaks?.find(us => us.streak_id === streak.id)
+      return {
+        streak,
+        user_streak: userStreak || null
+      }
+    })
+
+    return NextResponse.json({ 
+      streaks: streaksWithUserData,
+      total: streaks.length
+    })
+
+  } catch (error) {
+    console.error('Error in get streaks API:', error)
+    return NextResponse.json({ 
+      error: 'Internal server error' 
+    }, { status: 500 })
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()

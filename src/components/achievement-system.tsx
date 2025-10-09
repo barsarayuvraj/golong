@@ -28,6 +28,8 @@ import { createClient } from '@/lib/supabase-client'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { useRealtimeNotifications } from '@/lib/use-realtime'
 import { motion } from 'framer-motion'
+import { useAchievements, useCheckAchievements } from '@/hooks/useApi'
+import { toast } from 'sonner'
 
 interface Achievement {
   id: string
@@ -57,14 +59,18 @@ interface AchievementProgress {
 }
 
 export function AchievementSystem() {
-  const [achievements, setAchievements] = useState<Achievement[]>([])
-  const [userAchievements, setUserAchievements] = useState<UserAchievement[]>([])
-  const [achievementProgress, setAchievementProgress] = useState<AchievementProgress[]>([])
-  const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [userStats, setUserStats] = useState<any>(null)
 
   const supabase = createClient()
+  
+  // Use our custom hooks
+  const { data: achievementsData, loading, error, refetch } = useAchievements({ user_achievements: true })
+  const { checkAchievements, loading: checkingAchievements } = useCheckAchievements()
+  
+  const achievements = achievementsData?.achievements || []
+  const userAchievements = achievementsData?.user_achievements || []
+  const achievementProgress = achievementsData?.achievement_progress || []
 
   useEffect(() => {
     fetchUser()
@@ -72,93 +78,110 @@ export function AchievementSystem() {
 
   useEffect(() => {
     if (user) {
-      fetchAchievements()
-      fetchUserAchievements()
       fetchUserStats()
     }
   }, [user])
 
   const fetchUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    setUser(user)
-  }
-
-  const fetchAchievements = async () => {
     try {
-      const response = await fetch('/api/achievements')
-      const result = await response.json()
-
-      if (response.ok) {
-        setAchievements(result.achievements.map((a: any) => a.achievement))
-        setUserAchievements(result.earnedAchievements)
-        setAchievementProgress(result.achievements)
-      } else {
-        console.error('Error fetching achievements:', result.error)
+      console.log('Fetching user from Supabase auth')
+      const { data: { user }, error } = await supabase.auth.getUser()
+      
+      if (error) {
+        console.error('Error fetching user:', error)
+        setUser(null)
+        return
       }
+      
+      console.log('User fetched successfully:', user?.id)
+      setUser(user)
     } catch (error) {
-      console.error('Error fetching achievements:', error)
+      console.error('Error in fetchUser:', error)
+      setUser(null)
     }
   }
 
-  const checkForNewAchievements = async () => {
-    if (!user) return
-
+  const handleCheckForNewAchievements = async () => {
     try {
-      const response = await fetch('/api/achievements', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          user_id: user.id
-        })
-      })
-
-      const result = await response.json()
-
-      if (response.ok && result.newAchievements.length > 0) {
-        // Refresh achievements to show new ones
-        await fetchAchievements()
-        
-        // Show notification for new achievements
-        console.log(`Earned ${result.newAchievements.length} new achievements!`)
+      const result = await checkAchievements()
+      
+      if (result?.newAchievements && result.newAchievements.length > 0) {
+        toast.success(`Earned ${result.newAchievements.length} new achievements!`)
+        refetch() // Refresh achievements to show new ones
+      } else {
+        toast.info('No new achievements earned')
       }
     } catch (error) {
+      toast.error('Failed to check achievements')
       console.error('Error checking achievements:', error)
     }
   }
 
   const fetchUserStats = async () => {
-    if (!user) return
+    if (!user) {
+      console.log('No user found, skipping fetchUserStats')
+      return
+    }
 
     try {
+      console.log('Fetching user stats for user:', user.id)
+      
       // Get user's streak statistics
       const { data: userStreaks, error: streaksError } = await supabase
         .from('user_streaks')
         .select('*')
         .eq('user_id', user.id)
 
-      if (streaksError) throw streaksError
+      if (streaksError) {
+        console.error('Supabase error fetching user streaks:', streaksError)
+        throw streaksError
+      }
 
+      console.log('Successfully fetched user streaks:', userStreaks)
+
+      // Get checkins through user_streaks relationship
+      const userStreakIds = userStreaks?.map(us => us.id) || []
       const { data: checkins, error: checkinsError } = await supabase
         .from('checkins')
         .select('*')
-        .eq('user_id', user.id)
+        .in('user_streak_id', userStreakIds)
 
-      if (checkinsError) throw checkinsError
+      if (checkinsError) {
+        console.error('Supabase error fetching checkins:', checkinsError)
+        throw checkinsError
+      }
+
+      console.log('Successfully fetched checkins:', checkins)
 
       const stats = {
         totalStreaks: userStreaks?.length || 0,
         activeStreaks: userStreaks?.filter(s => s.current_streak_count > 0).length || 0,
         longestStreak: Math.max(...(userStreaks?.map(s => s.longest_streak_count) || [0])),
         totalCheckins: checkins?.length || 0,
-        totalDays: new Set(checkins?.map(c => c.created_at.split('T')[0])).size || 0
+        totalDays: new Set(checkins?.map(c => c.checkin_date)).size || 0
       }
 
+      console.log('Calculated user stats:', stats)
       setUserStats(stats)
       calculateAchievementProgress(stats)
     } catch (error) {
       console.error('Error fetching user stats:', error)
+      console.error('Error details:', {
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code
+      })
+      // Set default stats to prevent further errors
+      const defaultStats = {
+        totalStreaks: 0,
+        activeStreaks: 0,
+        longestStreak: 0,
+        totalCheckins: 0,
+        totalDays: 0
+      }
+      setUserStats(defaultStats)
+      calculateAchievementProgress(defaultStats)
     }
   }
 

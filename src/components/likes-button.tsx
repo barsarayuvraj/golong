@@ -6,6 +6,8 @@ import { Heart, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase-client'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { motion } from 'framer-motion'
+import { useLikes, useCreateLike, useDeleteLike } from '@/hooks/useApi'
+import { toast } from 'sonner'
 
 interface LikesButtonProps {
   streakId: string
@@ -14,81 +16,45 @@ interface LikesButtonProps {
 }
 
 export function LikesButton({ streakId, initialLikes = 0, initialLiked = false }: LikesButtonProps) {
-  const [likes, setLikes] = useState(initialLikes)
-  const [liked, setLiked] = useState(initialLiked)
-  const [loading, setLoading] = useState(false)
   const [user, setUser] = useState<SupabaseUser | null>(null)
 
   const supabase = createClient()
+  
+  // Use our custom hooks
+  const { data: likesData, loading, error, refetch } = useLikes(streakId, { check_user_like: true })
+  const { createLike, loading: creatingLike } = useCreateLike()
+  const { deleteLike, loading: deletingLike } = useDeleteLike()
+  
+  const likes = likesData?.count || 0
+  const liked = likesData?.user_liked || false
+  const isLoading = creatingLike || deletingLike
 
   useEffect(() => {
     fetchUser()
-    fetchLikes()
-  }, [streakId])
+  }, [])
 
   const fetchUser = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     setUser(user)
   }
 
-  const fetchLikes = async () => {
-    try {
-      const response = await fetch(`/api/likes?streak_id=${streakId}`)
-      const result = await response.json()
-
-      if (response.ok) {
-        setLikes(result.likeCount || 0)
-        setLiked(result.liked || false)
-      } else {
-        console.error('Error fetching likes:', result.error)
-      }
-    } catch (error) {
-      console.error('Error fetching likes:', error)
-    }
-  }
-
   const handleLike = async () => {
     if (!user) return
 
-    setLoading(true)
     try {
       if (liked) {
         // Unlike
-        const response = await fetch(`/api/likes?streak_id=${streakId}`, {
-          method: 'DELETE'
-        })
-        const result = await response.json()
-
-        if (response.ok) {
-          setLiked(false)
-          setLikes(result.likeCount || 0)
-        } else {
-          console.error('Error unliking:', result.error)
-        }
+        await deleteLike(streakId)
+        toast.success('Unliked!')
       } else {
         // Like
-        const response = await fetch('/api/likes', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            streak_id: streakId,
-          })
-        })
-        const result = await response.json()
-
-        if (response.ok) {
-          setLiked(true)
-          setLikes(result.likeCount || 0)
-        } else {
-          console.error('Error liking:', result.error)
-        }
+        await createLike({ streak_id: streakId })
+        toast.success('Liked!')
       }
+      refetch() // Refresh likes data
     } catch (error) {
+      toast.error('Failed to update like. Please try again.')
       console.error('Error toggling like:', error)
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -101,7 +67,7 @@ export function LikesButton({ streakId, initialLikes = 0, initialLiked = false }
         variant="ghost"
         size="sm"
         onClick={handleLike}
-        disabled={loading || !user}
+        disabled={isLoading || !user}
         className={`flex items-center gap-2 transition-colors ${
           liked 
             ? 'text-red-600 hover:text-red-700' 

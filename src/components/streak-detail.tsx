@@ -12,53 +12,29 @@ import Link from 'next/link'
 import { Streak, UserStreak, LeaderboardEntry } from '@/types/database'
 import { CommentsSection } from './comments-section'
 import { SocialShare } from './social-share'
+import { useStreak, useJoinStreak, useCreateCheckin, useCheckins } from '@/hooks/useApi'
+import { toast } from 'sonner'
 
 export default function StreakDetailPage() {
   const params = useParams()
   const streakId = params.id as string
   
-  const [streak, setStreak] = useState<Streak | null>(null)
-  const [userStreak, setUserStreak] = useState<UserStreak | null>(null)
+  // Use our custom hooks for API calls
+  const { data: streakData, loading: streakLoading, error: streakError } = useStreak(streakId)
+  const { data: checkinsData, loading: checkinsLoading, refetch: refetchCheckins } = useCheckins({ streak_id: streakId })
+  const { joinStreak, loading: joining } = useJoinStreak()
+  const { createCheckin, loading: checkingIn } = useCreateCheckin()
+  
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
-  const [loading, setLoading] = useState(true)
-  const [joining, setJoining] = useState(false)
-  const [checkingIn, setCheckingIn] = useState(false)
+  
+  // Extract streak and user streak data
+  const streak = streakData?.streak || null
+  const userStreak = streakData?.user_streak || null
 
-  // Mock data - replace with actual API calls
+  // Load leaderboard data (this would come from a separate API endpoint)
   useEffect(() => {
-    const mockStreak: Streak = {
-      id: streakId,
-      title: 'No Social Media',
-      description: 'Stay focused by avoiding social media platforms like Instagram, Facebook, Twitter, TikTok, and YouTube. This streak helps you reclaim your time and mental energy.',
-      category: 'Productivity',
-      is_public: true,
-      created_by: 'user1',
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
-      tags: ['productivity', 'focus', 'digital-detox', 'mental-health'],
-      is_active: true,
-      profiles: {
-        id: 'user1',
-        username: 'focused_user',
-        display_name: 'Focused User',
-        avatar_url: '',
-        bio: 'Productivity enthusiast',
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z'
-      }
-    }
-
-    const mockUserStreak: UserStreak = {
-      id: 'user_streak_1',
-      user_id: 'current_user',
-      streak_id: streakId,
-      current_streak_days: 7,
-      longest_streak_days: 15,
-      last_checkin_date: '2024-01-07',
-      joined_at: '2024-01-01T00:00:00Z',
-      is_active: true
-    }
-
+    // TODO: Implement leaderboard API endpoint
+    // For now, we'll use mock data
     const mockLeaderboard: LeaderboardEntry[] = [
       {
         user_id: 'user1',
@@ -91,76 +67,35 @@ export default function StreakDetailPage() {
         joined_at: '2023-12-15T00:00:00Z'
       }
     ]
-
-    setTimeout(() => {
-      setStreak(mockStreak)
-      setUserStreak(mockUserStreak)
-      setLeaderboard(mockLeaderboard)
-      setLoading(false)
-    }, 1000)
+    setLeaderboard(mockLeaderboard)
   }, [streakId])
 
   const handleJoinStreak = async () => {
-    setJoining(true)
     try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      const newUserStreak: UserStreak = {
-        id: 'new_user_streak',
-        user_id: 'current_user',
-        streak_id: streakId,
-        current_streak_days: 0,
-        longest_streak_days: 0,
-        joined_at: new Date().toISOString(),
-        is_active: true
-      }
-      
-      setUserStreak(newUserStreak)
+      await joinStreak(streakId)
+      toast.success('Successfully joined the streak!')
+      // The streak data will be refetched automatically by the hook
     } catch (error) {
+      toast.error('Failed to join streak. Please try again.')
       console.error('Failed to join streak:', error)
-    } finally {
-      setJoining(false)
     }
   }
 
   const handleCheckIn = async () => {
-    if (!streak) return
+    if (!userStreak) return
     
-    setCheckingIn(true)
     try {
-      const response = await fetch('/api/checkins', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          streak_id: streak.id,
-          checkin_date: new Date().toISOString().split('T')[0]
-        })
+      await createCheckin({
+        user_streak_id: userStreak.id,
+        checkin_date: new Date().toISOString().split('T')[0]
       })
-
-      const result = await response.json()
-
-      if (response.ok) {
-        // Update local state with new streak data
-        if (userStreak) {
-          setUserStreak({
-            ...userStreak,
-            current_streak_days: result.current_streak_days,
-            longest_streak_days: result.longest_streak_days,
-            last_checkin_date: result.checkin_date
-          })
-        }
-        
-        console.log('Check-in successful:', result.message)
-      } else {
-        console.error('Check-in failed:', result.error)
-      }
+      
+      toast.success('Check-in successful!')
+      // Refetch checkins and streak data
+      refetchCheckins()
     } catch (error) {
+      toast.error('Failed to check in. Please try again.')
       console.error('Failed to check in:', error)
-    } finally {
-      setCheckingIn(false)
     }
   }
 
@@ -170,11 +105,25 @@ export default function StreakDetailPage() {
     return userStreak.last_checkin_date !== today
   }
 
-  if (loading) {
+  if (streakLoading) {
     return (
       <div className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        </div>
+      </div>
+    )
+  }
+
+  if (streakError) {
+    return (
+      <div className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Error loading streak</h1>
+          <p className="text-gray-600 mb-4">{streakError}</p>
+          <Link href="/explore">
+            <Button>Back to Explore</Button>
+          </Link>
         </div>
       </div>
     )

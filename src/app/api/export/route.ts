@@ -2,330 +2,344 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { z } from 'zod'
 
-const exportSchema = z.object({
-  format: z.enum(['json', 'csv']).default('json'),
-  includeCharts: z.boolean().default(true),
-  includeAchievements: z.boolean().default(true),
-  includeCheckins: z.boolean().default(true),
-  dateRange: z.enum(['week', 'month', 'year', 'all']).default('all'),
-  streaks: z.array(z.string().uuid()).default([]),
+// Validation schemas
+const exportRequestSchema = z.object({
+  export_type: z.enum(['streaks', 'checkins', 'analytics', 'all']),
+  format: z.enum(['csv', 'json', 'pdf']).default('json'),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 })
 
+// GET /api/export - Get export jobs status
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const job_id = searchParams.get('job_id')
+
+    if (job_id) {
+      // Get specific export job
+      const { data: job, error } = await supabase
+        .from('export_jobs')
+        .select('*')
+        .eq('id', job_id)
+        .eq('user_id', user.id)
+        .single()
+
+      if (error) {
+        console.error('Error fetching export job:', error)
+        return NextResponse.json({ error: 'Export job not found' }, { status: 404 })
+      }
+
+      return NextResponse.json({ job })
+    } else {
+      // Get user's export jobs
+      const { data: jobs, error } = await supabase
+        .from('export_jobs')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(10)
+
+      if (error) {
+        console.error('Error fetching export jobs:', error)
+        return NextResponse.json({ error: 'Failed to fetch export jobs' }, { status: 500 })
+      }
+
+      return NextResponse.json({ jobs })
+    }
+  } catch (error) {
+    console.error('Export GET error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+// POST /api/export - Create a new export job
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    
-    // Get the current user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
+
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await request.json()
-    const validatedData = exportSchema.parse(body)
+    const validatedData = exportRequestSchema.parse(body)
 
-    // Calculate date range
-    const now = new Date()
-    let startDate: Date
-
-    switch (validatedData.dateRange) {
-      case 'week':
-        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-        break
-      case 'month':
-        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-        break
-      case 'year':
-        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
-        break
-      case 'all':
-      default:
-        startDate = new Date('2020-01-01')
-        break
-    }
-
-    // Get user's streaks
-    let streaksQuery = supabase
-      .from('user_streaks')
-      .select(`
-        id,
-        current_streak_days,
-        longest_streak_days,
-        last_checkin_date,
-        joined_at,
-        streak:streaks (
-          id,
-          title,
-          description,
-          category,
-          created_at,
-          is_public,
-          tags
-        )
-      `)
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-
-    if (validatedData.streaks.length > 0) {
-      streaksQuery = streaksQuery.in('streak_id', validatedData.streaks)
-    }
-
-    const { data: userStreaks, error: userStreaksError } = await streaksQuery
-
-    if (userStreaksError) {
-      console.error('Error fetching user streaks:', userStreaksError)
-      return NextResponse.json({ error: 'Failed to fetch user streaks' }, { status: 500 })
-    }
-
-    // Get check-ins
-    let checkinsQuery = supabase
-      .from('checkins')
-      .select(`
-        checkin_date,
-        created_at,
-        user_streak:user_streaks!inner (
-          streak:streaks (
-            id,
-            title,
-            category
-          )
-        )
-      `)
-      .eq('user_streak.user_id', user.id)
-      .gte('checkin_date', startDate.toISOString().split('T')[0])
-
-    if (validatedData.streaks.length > 0) {
-      checkinsQuery = checkinsQuery.in('user_streak.streak_id', validatedData.streaks)
-    }
-
-    const { data: checkins, error: checkinsError } = await checkinsQuery
-
-    if (checkinsError) {
-      console.error('Error fetching checkins:', checkinsError)
-      return NextResponse.json({ error: 'Failed to fetch checkins' }, { status: 500 })
-    }
-
-    // Get achievements
-    const { data: achievements, error: achievementsError } = await supabase
-      .from('user_achievements')
-      .select(`
-        earned_at,
-        achievement:achievements (
-          name,
-          description,
-          points,
-          rarity
-        )
-      `)
-      .eq('user_id', user.id)
-      .gte('earned_at', startDate.toISOString())
-
-    if (achievementsError) {
-      console.error('Error fetching achievements:', achievementsError)
-      return NextResponse.json({ error: 'Failed to fetch achievements' }, { status: 500 })
-    }
-
-    // Get user profile
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('username, display_name, created_at')
-      .eq('id', user.id)
+    // Create export job
+    const { data: job, error } = await supabase
+      .from('export_jobs')
+      .insert({
+        user_id: user.id,
+        export_type: validatedData.export_type,
+        format: validatedData.format,
+        status: 'pending',
+      })
+      .select()
       .single()
 
-    if (profileError) {
-      console.error('Error fetching profile:', profileError)
+    if (error) {
+      console.error('Error creating export job:', error)
+      return NextResponse.json({ error: 'Failed to create export job' }, { status: 500 })
     }
 
-    // Calculate summary statistics
-    const totalStreaks = userStreaks?.length || 0
-    const totalCheckins = checkins?.length || 0
-    const longestStreak = Math.max(...(userStreaks?.map(us => us.longest_streak_days) || [0]))
-    const currentStreak = Math.max(...(userStreaks?.map(us => us.current_streak_days) || [0]))
-    const totalAchievements = achievements?.length || 0
-    const totalPoints = achievements?.reduce((sum, ach) => sum + (ach.achievement?.points || 0), 0) || 0
+    // Start processing in background (in a real app, you'd use a queue system)
+    processExportJob(supabase, job.id, user.id, validatedData)
 
-    // Prepare export data
-    const exportData = {
-      exportInfo: {
-        exportedAt: new Date().toISOString(),
-        exportedBy: user.email,
-        dateRange: validatedData.dateRange,
-        startDate: startDate.toISOString().split('T')[0],
-        endDate: now.toISOString().split('T')[0],
-        format: validatedData.format,
-        version: '1.0'
-      },
-      userInfo: {
-        username: profile?.username,
-        displayName: profile?.display_name,
-        memberSince: profile?.created_at,
-        totalStreaks,
-        totalCheckins,
-        longestStreak,
-        currentStreak,
-        totalAchievements,
-        totalPoints
-      },
-      streaks: userStreaks?.map(us => ({
-        id: us.streak?.id,
-        title: us.streak?.title,
-        description: us.streak?.description,
-        category: us.streak?.category,
-        isPublic: us.streak?.is_public,
-        tags: us.streak?.tags,
-        currentStreakDays: us.current_streak_days,
-        longestStreakDays: us.longest_streak_days,
-        lastCheckinDate: us.last_checkin_date,
-        joinedAt: us.joined_at,
-        createdAt: us.streak?.created_at
-      })) || [],
-      checkins: validatedData.includeCheckins ? checkins?.map(c => ({
-        date: c.checkin_date,
-        createdAt: c.created_at,
-        streakTitle: c.user_streak?.streak?.title,
-        streakCategory: c.user_streak?.streak?.category
-      })) || [] : [],
-      achievements: validatedData.includeAchievements ? achievements?.map(a => ({
-        name: a.achievement?.name,
-        description: a.achievement?.description,
-        points: a.achievement?.points,
-        rarity: a.achievement?.rarity,
-        earnedAt: a.earned_at
-      })) || [] : []
-    }
-
-    // Generate charts data if requested
-    if (validatedData.includeCharts) {
-      // Monthly check-ins chart
-      const monthlyCheckins = []
-      const currentDate = new Date(startDate)
-      
-      while (currentDate <= now) {
-        const monthKey = currentDate.toISOString().substring(0, 7)
-        const monthCheckins = checkins?.filter(c => 
-          c.checkin_date.startsWith(monthKey)
-        ).length || 0
-        
-        monthlyCheckins.push({
-          month: monthKey,
-          checkins: monthCheckins
-        })
-
-        currentDate.setMonth(currentDate.getMonth() + 1)
-      }
-
-      // Streaks by category chart
-      const streaksByCategory = userStreaks?.reduce((acc, us) => {
-        const category = us.streak?.category || 'Other'
-        acc[category] = (acc[category] || 0) + 1
-        return acc
-      }, {} as Record<string, number>) || {}
-
-      exportData.charts = {
-        monthlyCheckins,
-        streaksByCategory: Object.entries(streaksByCategory).map(([category, count]) => ({
-          category,
-          count
-        })),
-        dailyPatterns: Array.from({ length: 7 }, (_, i) => {
-          const dayCheckins = checkins?.filter(c => {
-            const date = new Date(c.checkin_date)
-            return date.getDay() === i
-          }).length || 0
-          
-          const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-          return {
-            day: dayNames[i],
-            checkins: dayCheckins
-          }
-        })
-      }
-    }
-
-    // Format response based on requested format
-    if (validatedData.format === 'csv') {
-      // Convert to CSV format
-      const csvData = convertToCSV(exportData)
-      return new NextResponse(csvData, {
-        headers: {
-          'Content-Type': 'text/csv',
-          'Content-Disposition': `attachment; filename="golong-export-${new Date().toISOString().split('T')[0]}.csv"`
-        }
-      })
-    } else {
-      // Return JSON format
-      return NextResponse.json({ 
-        data: exportData,
-        message: 'Data exported successfully'
-      })
-    }
-
+    return NextResponse.json({ job }, { status: 201 })
   } catch (error) {
-    console.error('Error in export API:', error)
-    
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ 
-        error: 'Invalid data', 
-        details: error.issues 
-      }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid input', details: error.errors }, { status: 400 })
     }
-
-    return NextResponse.json({ 
-      error: 'Internal server error' 
-    }, { status: 500 })
+    console.error('Export POST error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
+// DELETE /api/export - Cancel an export job
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const jobId = searchParams.get('job_id')
+
+    if (!jobId) {
+      return NextResponse.json({ error: 'Job ID is required' }, { status: 400 })
+    }
+
+    // Update job status to cancelled
+    const { error } = await supabase
+      .from('export_jobs')
+      .update({ 
+        status: 'failed',
+        error_message: 'Cancelled by user'
+      })
+      .eq('id', jobId)
+      .eq('user_id', user.id)
+
+    if (error) {
+      console.error('Error cancelling export job:', error)
+      return NextResponse.json({ error: 'Failed to cancel export job' }, { status: 500 })
+    }
+
+    return NextResponse.json({ message: 'Export job cancelled' })
+  } catch (error) {
+    console.error('Export DELETE error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+// Background function to process export jobs
+async function processExportJob(supabase: any, jobId: string, userId: string, exportData: any) {
+  try {
+    // Update job status to processing
+    await supabase
+      .from('export_jobs')
+      .update({ status: 'processing' })
+      .eq('id', jobId)
+
+    let exportData_result: any = {}
+
+    // Fetch data based on export type
+    if (exportData.export_type === 'streaks' || exportData.export_type === 'all') {
+      const { data: streaks } = await supabase
+        .from('user_streaks')
+        .select(`
+          *,
+          streaks(*)
+        `)
+        .eq('user_id', userId)
+
+      exportData_result.streaks = streaks || []
+    }
+
+    if (exportData.export_type === 'checkins' || exportData.export_type === 'all') {
+      let query = supabase
+        .from('checkins')
+        .select(`
+          *,
+          user_streaks!inner(
+            *,
+            streaks(*)
+          )
+        `)
+        .eq('user_streaks.user_id', userId)
+
+      if (exportData.start_date) {
+        query = query.gte('checkin_date', exportData.start_date)
+      }
+      if (exportData.end_date) {
+        query = query.lte('checkin_date', exportData.end_date)
+      }
+
+      const { data: checkins } = await query
+      exportData_result.checkins = checkins || []
+    }
+
+    if (exportData.export_type === 'analytics' || exportData.export_type === 'all') {
+      const { data: analytics } = await supabase
+        .from('analytics_data')
+        .select('*')
+        .eq('user_id', userId)
+
+      exportData_result.analytics = analytics || []
+    }
+
+    // Generate file based on format
+    let fileContent: string
+    let fileName: string
+    let mimeType: string
+
+    if (exportData.format === 'json') {
+      fileContent = JSON.stringify(exportData_result, null, 2)
+      fileName = `golong-export-${exportData.export_type}-${Date.now()}.json`
+      mimeType = 'application/json'
+    } else if (exportData.format === 'csv') {
+      fileContent = convertToCSV(exportData_result)
+      fileName = `golong-export-${exportData.export_type}-${Date.now()}.csv`
+      mimeType = 'text/csv'
+    } else {
+      // For PDF, we'd need a PDF generation library
+      fileContent = JSON.stringify(exportData_result, null, 2)
+      fileName = `golong-export-${exportData.export_type}-${Date.now()}.txt`
+      mimeType = 'text/plain'
+    }
+
+    // In a real application, you would:
+    // 1. Upload the file to a cloud storage service (S3, etc.)
+    // 2. Generate a signed URL for download
+    // 3. Store the file URL in the database
+
+    // For now, we'll simulate a file URL
+    const fileUrl = `https://example.com/exports/${fileName}`
+
+    // Update job with completion
+    await supabase
+      .from('export_jobs')
+      .update({
+        status: 'completed',
+        file_url: fileUrl,
+        completed_at: new Date().toISOString()
+      })
+      .eq('id', jobId)
+
+    // Create notification for user
+    await supabase
+      .from('notifications')
+      .insert({
+        user_id: userId,
+        type: 'milestone',
+        title: 'Export Ready',
+        message: `Your ${exportData.export_type} export is ready for download`,
+        data: { export_job_id: jobId, file_url: fileUrl }
+      })
+
+  } catch (error) {
+    console.error('Error processing export job:', error)
+    
+    // Update job with error
+    await supabase
+      .from('export_jobs')
+      .update({
+        status: 'failed',
+        error_message: error instanceof Error ? error.message : 'Unknown error'
+      })
+      .eq('id', jobId)
+  }
+}
+
+// Helper function to convert data to CSV format
 function convertToCSV(data: any): string {
   const lines: string[] = []
   
-  // Add export info
-  lines.push('Export Information')
-  lines.push(`Exported At,${data.exportInfo.exportedAt}`)
-  lines.push(`Date Range,${data.exportInfo.dateRange}`)
-  lines.push(`Start Date,${data.exportInfo.startDate}`)
-  lines.push(`End Date,${data.exportInfo.endDate}`)
-  lines.push('')
-  
-  // Add user info
-  lines.push('User Summary')
-  lines.push(`Username,${data.userInfo.username}`)
-  lines.push(`Display Name,${data.userInfo.displayName}`)
-  lines.push(`Total Streaks,${data.userInfo.totalStreaks}`)
-  lines.push(`Total Check-ins,${data.userInfo.totalCheckins}`)
-  lines.push(`Longest Streak,${data.userInfo.longestStreak}`)
-  lines.push(`Current Streak,${data.userInfo.currentStreak}`)
-  lines.push(`Total Achievements,${data.userInfo.totalAchievements}`)
-  lines.push(`Total Points,${data.userInfo.totalPoints}`)
-  lines.push('')
-  
-  // Add streaks
-  lines.push('Streaks')
-  lines.push('Title,Category,Current Streak,Longest Streak,Last Check-in,Joined At')
-  data.streaks.forEach((streak: any) => {
-    lines.push(`"${streak.title}","${streak.category}",${streak.currentStreakDays},${streak.longestStreakDays},${streak.lastCheckinDate || ''},${streak.joinedAt}`)
-  })
-  lines.push('')
-  
-  // Add check-ins
-  if (data.checkins.length > 0) {
-    lines.push('Check-ins')
-    lines.push('Date,Streak Title,Category')
-    data.checkins.forEach((checkin: any) => {
-      lines.push(`${checkin.date},"${checkin.streakTitle}","${checkin.streakCategory}"`)
-    })
-    lines.push('')
-  }
-  
-  // Add achievements
-  if (data.achievements.length > 0) {
-    lines.push('Achievements')
-    lines.push('Name,Points,Rarity,Earned At')
-    data.achievements.forEach((achievement: any) => {
-      lines.push(`"${achievement.name}",${achievement.points},"${achievement.rarity}",${achievement.earnedAt}`)
-    })
+  for (const [key, value] of Object.entries(data)) {
+    if (Array.isArray(value) && value.length > 0) {
+      // Add section header
+      lines.push(`\n# ${key.toUpperCase()}\n`)
+      
+      // Get headers from first object
+      const headers = Object.keys(value[0])
+      lines.push(headers.join(','))
+      
+      // Add data rows
+      value.forEach((item: any) => {
+        const row = headers.map(header => {
+          const val = item[header]
+          // Escape commas and quotes in CSV
+          if (typeof val === 'string' && (val.includes(',') || val.includes('"'))) {
+            return `"${val.replace(/"/g, '""')}"`
+          }
+          return val || ''
+        })
+        lines.push(row.join(','))
+      })
+    }
   }
   
   return lines.join('\n')
+}
+
+// GET /api/export/download - Download exported file
+export async function DOWNLOAD_EXPORT(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const jobId = searchParams.get('job_id')
+
+    if (!jobId) {
+      return NextResponse.json({ error: 'Job ID is required' }, { status: 400 })
+    }
+
+    // Get the export job
+    const { data: job, error: jobError } = await supabase
+      .from('export_jobs')
+      .select('*')
+      .eq('id', jobId)
+      .eq('user_id', user.id)
+      .single()
+
+    if (jobError || !job) {
+      return NextResponse.json({ error: 'Export job not found' }, { status: 404 })
+    }
+
+    if (job.status !== 'completed') {
+      return NextResponse.json({ error: 'Export job is not completed yet' }, { status: 400 })
+    }
+
+    if (!job.file_url) {
+      return NextResponse.json({ error: 'File URL not available' }, { status: 404 })
+    }
+
+    // In a real application, you would:
+    // 1. Generate a signed URL for the file
+    // 2. Redirect to the download URL
+    // 3. Or stream the file content directly
+
+    return NextResponse.json({ 
+      download_url: job.file_url,
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
+    })
+  } catch (error) {
+    console.error('Download export error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
 }

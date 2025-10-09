@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { 
   Users, 
@@ -112,13 +113,29 @@ export function StreakGroups() {
   }, [user])
 
   const fetchUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    setUser(user)
+    try {
+      console.log('Fetching user from Supabase auth')
+      const { data: { user }, error } = await supabase.auth.getUser()
+      
+      if (error) {
+        console.error('Error fetching user:', error)
+        setUser(null)
+        return
+      }
+      
+      console.log('User fetched successfully:', user?.id)
+      setUser(user)
+    } catch (error) {
+      console.error('Error in fetchUser:', error)
+      setUser(null)
+    }
   }
 
   const fetchGroups = async () => {
     try {
       setLoading(true)
+      console.log('Fetching public groups')
+      
       const { data, error } = await supabase
         .from('groups')
         .select(`
@@ -129,10 +146,15 @@ export function StreakGroups() {
             avatar_url
           )
         `)
-        .eq('is_public', true)
+        .eq('is_private', false)
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error fetching groups:', error)
+        throw error
+      }
+
+      console.log('Successfully fetched groups:', data)
 
       // Get member counts and user membership status
       const groupsWithMembers = await Promise.all(
@@ -151,13 +173,14 @@ export function StreakGroups() {
               .eq('group_id', group.id)
               .eq('user_id', user.id)
               .single()
-            
+
             userIsMember = !!membership
             userRole = membership?.role || 'member'
           }
 
           return {
             ...group,
+            is_public: !group.is_private, // Convert is_private to is_public for UI
             member_count: memberCount || 0,
             user_is_member: userIsMember,
             user_role: userRole
@@ -165,51 +188,94 @@ export function StreakGroups() {
         })
       )
 
+      console.log('Successfully processed groups with members:', groupsWithMembers)
       setGroups(groupsWithMembers)
     } catch (error) {
       console.error('Error fetching groups:', error)
+      console.error('Error details:', {
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code
+      })
+      // Set empty array to prevent further errors
+      setGroups([])
     } finally {
       setLoading(false)
     }
   }
 
   const fetchUserGroups = async () => {
-    if (!user) return
+    if (!user) {
+      console.log('No user found, skipping fetchUserGroups')
+      return
+    }
 
     try {
-      const { data, error } = await supabase
+      console.log('Fetching user groups for user:', user.id)
+      
+      // First, try to fetch just the group_members data
+      const { data: memberships, error: membershipsError } = await supabase
         .from('group_members')
-        .select(`
-          *,
-          group:groups (
-            id,
-            name,
-            description,
-            category,
-            is_public,
-            max_members,
-            created_by,
-            created_at,
-            updated_at,
-            creator:profiles!created_by (
-              id,
-              username,
-              avatar_url
-            )
-          )
-        `)
+        .select('*')
         .eq('user_id', user.id)
 
-      if (error) throw error
+      if (membershipsError) {
+        console.error('Supabase error fetching user group memberships:', membershipsError)
+        throw membershipsError
+      }
 
-      const userGroupsData = data?.map(item => ({
-        ...item.group,
-        user_role: item.role
-      })) || []
+      console.log('Successfully fetched user group memberships:', memberships)
 
+      if (!memberships || memberships.length === 0) {
+        console.log('No group memberships found for user')
+        setUserGroups([])
+        return
+      }
+
+      // Then fetch the group details for each membership
+      const groupIds = memberships.map(m => m.group_id)
+      const { data: groups, error: groupsError } = await supabase
+        .from('groups')
+        .select(`
+          *,
+          creator:profiles!created_by (
+            id,
+            username,
+            avatar_url
+          )
+        `)
+        .in('id', groupIds)
+
+      if (groupsError) {
+        console.error('Supabase error fetching group details:', groupsError)
+        throw groupsError
+      }
+
+      console.log('Successfully fetched group details:', groups)
+
+      // Combine the data
+      const userGroupsData = memberships.map(membership => {
+        const group = groups?.find(g => g.id === membership.group_id)
+        return group ? {
+          ...group,
+          is_public: !group.is_private, // Convert is_private to is_public for UI
+          user_role: membership.role
+        } : null
+      }).filter(Boolean) // Remove any null entries
+
+      console.log('Successfully processed user groups:', userGroupsData)
       setUserGroups(userGroupsData)
     } catch (error) {
       console.error('Error fetching user groups:', error)
+      console.error('Error details:', {
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code
+      })
+      // Set empty array to prevent further errors
+      setUserGroups([])
     }
   }
 
@@ -237,17 +303,64 @@ export function StreakGroups() {
   }
 
   const handleCreateGroup = async () => {
-    if (!user) return
+    if (!user) {
+      console.log('No user found, cannot create group')
+      return
+    }
+
+    // Validate required fields
+    if (!createData.name?.trim()) {
+      console.error('Group name is required')
+      return
+    }
+    if (!createData.description?.trim()) {
+      console.error('Group description is required')
+      return
+    }
+    if (!createData.category?.trim()) {
+      console.error('Group category is required')
+      return
+    }
 
     try {
-      const { error } = await supabase
+      console.log('Creating group with data:', createData)
+      console.log('User ID:', user.id)
+      
+      const { data, error } = await supabase
         .from('groups')
         .insert({
-          ...createData,
+          name: createData.name,
+          description: createData.description,
+          category: createData.category,
+          is_private: !createData.is_public, // Convert is_public to is_private
+          max_members: createData.max_members,
           created_by: user.id
         })
+        .select()
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error creating group:', error)
+        throw error
+      }
+
+      console.log('Successfully created group:', data)
+
+      // Add the creator as an admin member of the group
+      if (data && data[0]) {
+        const { error: memberError } = await supabase
+          .from('group_members')
+          .insert({
+            group_id: data[0].id,
+            user_id: user.id,
+            role: 'admin'
+          })
+
+        if (memberError) {
+          console.error('Error adding creator as group member:', memberError)
+        } else {
+          console.log('Successfully added creator as group admin')
+        }
+      }
 
       setShowCreateDialog(false)
       setCreateData({
@@ -258,48 +371,89 @@ export function StreakGroups() {
         max_members: undefined
       })
       fetchGroups()
+      fetchUserGroups()
     } catch (error) {
       console.error('Error creating group:', error)
+      console.error('Error details:', {
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code
+      })
     }
   }
 
   const handleJoinGroup = async (groupId: string) => {
-    if (!user) return
+    if (!user) {
+      console.log('No user found, cannot join group')
+      return
+    }
 
     try {
-      const { error } = await supabase
+      console.log('Joining group:', groupId, 'for user:', user.id)
+      
+      const { data, error } = await supabase
         .from('group_members')
         .insert({
           group_id: groupId,
           user_id: user.id,
           role: 'member'
         })
+        .select()
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error joining group:', error)
+        throw error
+      }
+
+      console.log('Successfully joined group:', data)
 
       fetchGroups()
       fetchUserGroups()
     } catch (error) {
       console.error('Error joining group:', error)
+      console.error('Error details:', {
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code
+      })
     }
   }
 
   const handleLeaveGroup = async (groupId: string) => {
-    if (!user) return
+    if (!user) {
+      console.log('No user found, cannot leave group')
+      return
+    }
 
     try {
-      const { error } = await supabase
+      console.log('Leaving group:', groupId, 'for user:', user.id)
+      
+      const { data, error } = await supabase
         .from('group_members')
         .delete()
         .eq('group_id', groupId)
         .eq('user_id', user.id)
+        .select()
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error leaving group:', error)
+        throw error
+      }
+
+      console.log('Successfully left group:', data)
 
       fetchGroups()
       fetchUserGroups()
     } catch (error) {
       console.error('Error leaving group:', error)
+      console.error('Error details:', {
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code
+      })
     }
   }
 

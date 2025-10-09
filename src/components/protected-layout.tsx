@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
-import Navbar from '@/components/navbar'
 
 interface ProtectedLayoutProps {
   children: React.ReactNode
@@ -56,7 +55,6 @@ export default function ProtectedLayout({ children }: ProtectedLayoutProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar />
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         {children}
       </main>

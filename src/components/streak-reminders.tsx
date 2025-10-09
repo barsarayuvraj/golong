@@ -96,15 +96,34 @@ export function StreakReminders() {
   }, [user])
 
   const fetchUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    setUser(user)
+    try {
+      console.log('Fetching user from Supabase auth')
+      const { data: { user }, error } = await supabase.auth.getUser()
+      
+      if (error) {
+        console.error('Error fetching user:', error)
+        setUser(null)
+        return
+      }
+      
+      console.log('User fetched successfully:', user?.id)
+      setUser(user)
+    } catch (error) {
+      console.error('Error in fetchUser:', error)
+      setUser(null)
+    }
   }
 
   const fetchReminders = async () => {
-    if (!user) return
+    if (!user) {
+      console.log('No user found, skipping fetchReminders')
+      return
+    }
 
     try {
       setLoading(true)
+      console.log('Fetching reminders for user:', user.id)
+      
       const { data, error } = await supabase
         .from('reminders')
         .select(`
@@ -119,19 +138,37 @@ export function StreakReminders() {
         .eq('user_id', user.id)
         .order('time', { ascending: true })
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error fetching reminders:', error)
+        throw error
+      }
+      
+      console.log('Successfully fetched reminders:', data)
       setReminders(data || [])
     } catch (error) {
       console.error('Error fetching reminders:', error)
+      console.error('Error details:', {
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code
+      })
+      // Set empty array to prevent further errors
+      setReminders([])
     } finally {
       setLoading(false)
     }
   }
 
   const fetchUserStreaks = async () => {
-    if (!user) return
+    if (!user) {
+      console.log('No user found, skipping fetchUserStreaks')
+      return
+    }
 
     try {
+      console.log('Fetching user streaks for user:', user.id)
+      
       const { data, error } = await supabase
         .from('user_streaks')
         .select(`
@@ -144,12 +181,24 @@ export function StreakReminders() {
           )
         `)
         .eq('user_id', user.id)
-        .gt('current_streak_count', 0)
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error fetching user streaks:', error)
+        throw error
+      }
+      
+      console.log('Successfully fetched user streaks:', data)
       setUserStreaks(data || [])
     } catch (error) {
       console.error('Error fetching user streaks:', error)
+      console.error('Error details:', {
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code
+      })
+      // Set empty array to prevent further errors
+      setUserStreaks([])
     }
   }
 
@@ -288,7 +337,10 @@ export function StreakReminders() {
             <DialogHeader>
               <DialogTitle>Create New Reminder</DialogTitle>
               <DialogDescription>
-                Set up a reminder to help you maintain your streak.
+                {userStreaks.length === 0 
+                  ? "You need to create a streak first before setting up reminders."
+                  : "Set up a reminder to help you maintain your streak."
+                }
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
@@ -299,11 +351,17 @@ export function StreakReminders() {
                     <SelectValue placeholder="Select a streak" />
                   </SelectTrigger>
                   <SelectContent>
-                    {userStreaks.map(streak => (
-                      <SelectItem key={streak.id} value={streak.streak_id}>
-                        {streak.streak.title}
+                    {userStreaks.length === 0 ? (
+                      <SelectItem value="" disabled>
+                        No streaks available - Create a streak first
                       </SelectItem>
-                    ))}
+                    ) : (
+                      userStreaks.map(streak => (
+                        <SelectItem key={streak.id} value={streak.streak_id}>
+                          {streak.streak.title}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -369,7 +427,10 @@ export function StreakReminders() {
               <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleCreateReminder}>
+              <Button 
+                onClick={handleCreateReminder}
+                disabled={userStreaks.length === 0 || !createData.streak_id}
+              >
                 Create Reminder
               </Button>
             </DialogFooter>
@@ -382,11 +443,32 @@ export function StreakReminders() {
         <div className="text-center py-12">
           <Bell className="h-16 w-16 mx-auto mb-4 text-gray-400" />
           <h3 className="text-xl font-semibold mb-2">No Reminders Set</h3>
-          <p className="text-gray-600 mb-4">Create your first reminder to stay consistent with your streaks!</p>
-          <Button onClick={() => setShowCreateDialog(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Your First Reminder
-          </Button>
+          {userStreaks.length === 0 ? (
+            <>
+              <p className="text-gray-600 mb-4">You need to create a streak first before setting up reminders.</p>
+              <div className="flex gap-2 justify-center">
+                <Button asChild>
+                  <a href="/create">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Your First Streak
+                  </a>
+                </Button>
+                <Button asChild variant="outline">
+                  <a href="/explore">
+                    Explore Streaks
+                  </a>
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-gray-600 mb-4">Create your first reminder to stay consistent with your streaks!</p>
+              <Button onClick={() => setShowCreateDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Your First Reminder
+              </Button>
+            </>
+          )}
         </div>
       ) : (
         <div className="space-y-4">

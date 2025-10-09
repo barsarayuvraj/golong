@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GoLong API Tester</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2563eb;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            background-color: #f9fafb;
+        }
+        .section h2 {
+            color: #374151;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #374151;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #2563eb;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #1d4ed8;
+        }
+        button:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+        .response {
+            margin-top: 15px;
+            padding: 15px;
+            background-color: #f3f4f6;
+            border-radius: 4px;
+            border-left: 4px solid #2563eb;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .error {
+            border-left-color: #dc2626;
+            background-color: #fef2f2;
+        }
+        .success {
+            border-left-color: #059669;
+            background-color: #f0fdf4;
+        }
+        .auth-section {
+            background-color: #dbeafe;
+            border-color: #3b82f6;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-success { background-color: #10b981; }
+        .status-error { background-color: #ef4444; }
+        .status-pending { background-color: #f59e0b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 GoLong API Tester</h1>
+        
+        <!-- Authentication Section -->
+        <div class="section auth-section">
+            <h2>🔐 Authentication Setup</h2>
+            <div class="form-group">
+                <label for="authToken">Authentication Token:</label>
+                <input type="text" id="authToken" placeholder="Get this from browser console after login">
+                <small>Run: supabase.auth.getSession() in browser console to get your token</small>
+            </div>
+            <button onclick="testAuth()">Test Authentication</button>
+            <div id="authResponse" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="grid">
+            <!-- Checkins API -->
+            <div class="section">
+                <h2>📊 Checkins API</h2>
+                <div class="form-group">
+                    <label for="userStreakId">User Streak ID:</label>
+                    <input type="text" id="userStreakId" placeholder="UUID of user_streak">
+                </div>
+                <div class="form-group">
+                    <label for="checkinDate">Checkin Date:</label>
+                    <input type="date" id="checkinDate" value="">
+                </div>
+                <button onclick="testCheckins('GET')">Get Checkins</button>
+                <button onclick="testCheckins('POST')">Create Checkin</button>
+                <div id="checkinsResponse" class="response" style="display: none;"></div>
+            </div>
+
+            <!-- Comments API -->
+            <div class="section">
+                <h2>💬 Comments API</h2>
+                <div class="form-group">
+                    <label for="streakId">Streak ID:</label>
+                    <input type="text" id="streakId" placeholder="UUID of streak">
+                </div>
+                <div class="form-group">
+                    <label for="commentContent">Comment Content:</label>
+                    <textarea id="commentContent" rows="3" placeholder="Your comment here...">Great streak! Keep it up! 🔥</textarea>
+                </div>
+                <button onclick="testComments('GET')">Get Comments</button>
+                <button onclick="testComments('POST')">Create Comment</button>
+                <div id="commentsResponse" class="response" style="display: none;"></div>
+            </div>
+
+            <!-- Likes API -->
+            <div class="section">
+                <h2>❤️ Likes API</h2>
+                <div class="form-group">
+                    <label for="likeStreakId">Streak ID:</label>
+                    <input type="text" id="likeStreakId" placeholder="UUID of streak">
+                </div>
+                <button onclick="testLikes('GET')">Get Likes</button>
+                <button onclick="testLikes('POST')">Like Streak</button>
+                <button onclick="testLikes('DELETE')">Unlike Streak</button>
+                <div id="likesResponse" class="response" style="display: none;"></div>
+            </div>
+
+            <!-- Notifications API -->
+            <div class="section">
+                <h2>🔔 Notifications API</h2>
+                <button onclick="testNotifications('GET')">Get Notifications</button>
+                <button onclick="testNotifications('GET_UNREAD')">Get Unread</button>
+                <button onclick="testNotifications('PREFERENCES')">Get Preferences</button>
+                <button onclick="testNotifications('UPDATE_PREFS')">Update Preferences</button>
+                <div id="notificationsResponse" class="response" style="display: none;"></div>
+            </div>
+
+            <!-- Achievements API -->
+            <div class="section">
+                <h2>🏆 Achievements API</h2>
+                <button onclick="testAchievements('GET_ALL')">Get All Achievements</button>
+                <button onclick="testAchievements('GET_USER')">Get User Achievements</button>
+                <button onclick="testAchievements('CHECK')">Check Achievements</button>
+                <div id="achievementsResponse" class="response" style="display: none;"></div>
+            </div>
+
+            <!-- Challenges API -->
+            <div class="section">
+                <h2>🎯 Challenges API</h2>
+                <div class="form-group">
+                    <label for="challengeName">Challenge Name:</label>
+                    <input type="text" id="challengeName" placeholder="Test Challenge">
+                </div>
+                <button onclick="testChallenges('GET')">Get Challenges</button>
+                <button onclick="testChallenges('POST')">Create Challenge</button>
+                <div id="challengesResponse" class="response" style="display: none;"></div>
+            </div>
+
+            <!-- Groups API -->
+            <div class="section">
+                <h2>👥 Groups API</h2>
+                <div class="form-group">
+                    <label for="groupName">Group Name:</label>
+                    <input type="text" id="groupName" placeholder="Test Group">
+                </div>
+                <button onclick="testGroups('GET')">Get Groups</button>
+                <button onclick="testGroups('POST')">Create Group</button>
+                <div id="groupsResponse" class="response" style="display: none;"></div>
+            </div>
+
+            <!-- Reminders API -->
+            <div class="section">
+                <h2>⏰ Reminders API</h2>
+                <div class="form-group">
+                    <label for="reminderStreakId">Streak ID:</label>
+                    <input type="text" id="reminderStreakId" placeholder="UUID of streak">
+                </div>
+                <div class="form-group">
+                    <label for="reminderTime">Reminder Time:</label>
+                    <input type="time" id="reminderTime" value="09:00">
+                </div>
+                <button onclick="testReminders('GET')">Get Reminders</button>
+                <button onclick="testReminders('POST')">Create Reminder</button>
+                <button onclick="testReminders('UPCOMING')">Get Upcoming</button>
+                <div id="remindersResponse" class="response" style="display: none;"></div>
+            </div>
+
+            <!-- Analytics API -->
+            <div class="section">
+                <h2>📈 Analytics API</h2>
+                <div class="form-group">
+                    <label for="analyticsMetric">Metric:</label>
+                    <select id="analyticsMetric">
+                        <option value="overview">Overview</option>
+                        <option value="streaks">Streaks</option>
+                        <option value="checkins">Checkins</option>
+                        <option value="achievements">Achievements</option>
+                        <option value="social">Social</option>
+                    </select>
+                </div>
+                <button onclick="testAnalytics('GET')">Get Analytics</button>
+                <button onclick="testAnalytics('COMPUTE')">Compute Analytics</button>
+                <div id="analyticsResponse" class="response" style="display: none;"></div>
+            </div>
+
+            <!-- Export API -->
+            <div class="section">
+                <h2>📤 Export API</h2>
+                <div class="form-group">
+                    <label for="exportType">Export Type:</label>
+                    <select id="exportType">
+                        <option value="all">All Data</option>
+                        <option value="streaks">Streaks</option>
+                        <option value="checkins">Checkins</option>
+                        <option value="analytics">Analytics</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="exportFormat">Format:</label>
+                    <select id="exportFormat">
+                        <option value="json">JSON</option>
+                        <option value="csv">CSV</option>
+                        <option value="pdf">PDF</option>
+                    </select>
+                </div>
+                <button onclick="testExport('GET')">Get Export Jobs</button>
+                <button onclick="testExport('POST')">Create Export</button>
+                <div id="exportResponse" class="response" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://localhost:3000';
+        
+        // Set today's date as default
+        document.getElementById('checkinDate').value = new Date().toISOString().split('T')[0];
+        
+        async function makeRequest(endpoint, method = 'GET', body = null) {
+            const token = document.getElementById('authToken').value;
+            if (!token) {
+                showError('Please enter your authentication token first');
+                return;
+            }
+            
+            const url = `${BASE_URL}${endpoint}`;
+            const options = {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                ...(body && { body: JSON.stringify(body) })
+            };
+            
+            try {
+                const response = await fetch(url, options);
+                const data = await response.json();
+                
+                return {
+                    status: response.status,
+                    data,
+                    success: response.ok
+                };
+            } catch (error) {
+                return {
+                    status: 'ERROR',
+                    error: error.message,
+                    success: false
+                };
+            }
+        }
+        
+        function showResponse(elementId, result) {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            element.className = `response ${result.success ? 'success' : 'error'}`;
+            
+            const status = result.success ? '✅' : '❌';
+            const statusText = result.success ? 'SUCCESS' : 'ERROR';
+            
+            element.textContent = `${status} ${statusText} (${result.status})\n\n${JSON.stringify(result.data || result.error, null, 2)}`;
+        }
+        
+        function showError(message) {
+            alert(`❌ ${message}`);
+        }
+        
+        // Test functions
+        async function testAuth() {
+            const result = await makeRequest('/api/notifications');
+            showResponse('authResponse', result);
+        }
+        
+        async function testCheckins(method) {
+            let endpoint = '/api/checkins';
+            let body = null;
+            
+            if (method === 'POST') {
+                const userStreakId = document.getElementById('userStreakId').value;
+                const checkinDate = document.getElementById('checkinDate').value;
+                
+                if (!userStreakId) {
+                    showError('Please enter a User Streak ID');
+                    return;
+                }
+                
+                body = {
+                    user_streak_id: userStreakId,
+                    checkin_date: checkinDate
+                };
+            }
+            
+            const result = await makeRequest(endpoint, method, body);
+            showResponse('checkinsResponse', result);
+        }
+        
+        async function testComments(method) {
+            const streakId = document.getElementById('streakId').value;
+            let endpoint = `/api/comments?streak_id=${streakId}`;
+            let body = null;
+            
+            if (method === 'POST') {
+                const content = document.getElementById('commentContent').value;
+                
+                if (!streakId) {
+                    showError('Please enter a Streak ID');
+                    return;
+                }
+                
+                endpoint = '/api/comments';
+                body = {
+                    streak_id: streakId,
+                    content: content
+                };
+            }
+            
+            const result = await makeRequest(endpoint, method, body);
+            showResponse('commentsResponse', result);
+        }
+        
+        async function testLikes(method) {
+            const streakId = document.getElementById('likeStreakId').value;
+            
+            if (!streakId) {
+                showError('Please enter a Streak ID');
+                return;
+            }
+            
+            let endpoint = `/api/likes?streak_id=${streakId}`;
+            let body = null;
+            
+            if (method === 'POST') {
+                endpoint = '/api/likes';
+                body = { streak_id: streakId };
+            } else if (method === 'DELETE') {
+                endpoint = `/api/likes?streak_id=${streakId}`;
+            }
+            
+            const result = await makeRequest(endpoint, method, body);
+            showResponse('likesResponse', result);
+        }
+        
+        async function testNotifications(method) {
+            let endpoint = '/api/notifications';
+            let body = null;
+            
+            if (method === 'GET_UNREAD') {
+                endpoint = '/api/notifications?unread_only=true';
+            } else if (method === 'PREFERENCES') {
+                endpoint = '/api/notifications/preferences';
+            } else if (method === 'UPDATE_PREFS') {
+                endpoint = '/api/notifications/preferences';
+                method = 'PUT';
+                body = {
+                    email_notifications: true,
+                    push_notifications: true,
+                    streak_reminders: true
+                };
+            }
+            
+            const result = await makeRequest(endpoint, method, body);
+            showResponse('notificationsResponse', result);
+        }
+        
+        async function testAchievements(method) {
+            let endpoint = '/api/achievements';
+            let body = null;
+            
+            if (method === 'GET_USER') {
+                endpoint = '/api/achievements?user_achievements=true';
+            } else if (method === 'CHECK') {
+                endpoint = '/api/achievements/check';
+                method = 'POST';
+                body = {};
+            }
+            
+            const result = await makeRequest(endpoint, method, body);
+            showResponse('achievementsResponse', result);
+        }
+        
+        async function testChallenges(method) {
+            let endpoint = '/api/challenges';
+            let body = null;
+            
+            if (method === 'POST') {
+                const name = document.getElementById('challengeName').value || 'Test Challenge';
+                const today = new Date();
+                const endDate = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+                
+                body = {
+                    name: name,
+                    description: 'Test challenge created by API tester',
+                    category: 'Testing',
+                    duration_days: 7,
+                    start_date: today.toISOString().split('T')[0],
+                    end_date: endDate.toISOString().split('T')[0],
+                    max_participants: 10,
+                    prize_description: 'Test achievement badge'
+                };
+            }
+            
+            const result = await makeRequest(endpoint, method, body);
+            showResponse('challengesResponse', result);
+        }
+        
+        async function testGroups(method) {
+            let endpoint = '/api/groups';
+            let body = null;
+            
+            if (method === 'POST') {
+                const name = document.getElementById('groupName').value || 'Test Group';
+                
+                body = {
+                    name: name,
+                    description: 'Test group created by API tester',
+                    category: 'Testing',
+                    max_members: 20,
+                    is_private: false
+                };
+            }
+            
+            const result = await makeRequest(endpoint, method, body);
+            showResponse('groupsResponse', result);
+        }
+        
+        async function testReminders(method) {
+            const streakId = document.getElementById('reminderStreakId').value;
+            let endpoint = '/api/reminders';
+            let body = null;
+            
+            if (method === 'POST') {
+                if (!streakId) {
+                    showError('Please enter a Streak ID');
+                    return;
+                }
+                
+                const time = document.getElementById('reminderTime').value;
+                
+                body = {
+                    streak_id: streakId,
+                    time: time,
+                    days_of_week: [1, 2, 3, 4, 5],
+                    message: 'Time for your daily streak!',
+                    reminder_type: 'push'
+                };
+            } else if (method === 'UPCOMING') {
+                endpoint = '/api/reminders/upcoming';
+            }
+            
+            const result = await makeRequest(endpoint, method, body);
+            showResponse('remindersResponse', result);
+        }
+        
+        async function testAnalytics(method) {
+            let endpoint = '/api/analytics';
+            let body = null;
+            
+            if (method === 'GET') {
+                const metric = document.getElementById('analyticsMetric').value;
+                endpoint = `/api/analytics?metric=${metric}&period=month`;
+            } else if (method === 'COMPUTE') {
+                endpoint = '/api/analytics/compute';
+                method = 'POST';
+                body = {
+                    date: new Date().toISOString().split('T')[0],
+                    metrics: ['streaks', 'checkins']
+                };
+            }
+            
+            const result = await makeRequest(endpoint, method, body);
+            showResponse('analyticsResponse', result);
+        }
+        
+        async function testExport(method) {
+            let endpoint = '/api/export';
+            let body = null;
+            
+            if (method === 'POST') {
+                const exportType = document.getElementById('exportType').value;
+                const exportFormat = document.getElementById('exportFormat').value;
+                
+                body = {
+                    export_type: exportType,
+                    format: exportFormat,
+                    start_date: '2024-01-01',
+                    end_date: '2024-12-31'
+                };
+            }
+            
+            const result = await makeRequest(endpoint, method, body);
+            showResponse('exportResponse', result);
+        }
+    </script>
+</body>
+</html>

@@ -33,7 +33,7 @@ interface ExportData {
 }
 
 interface ExportOptions {
-  format: 'pdf' | 'csv' | 'json' | 'image'
+  format: 'pdf' | 'csv' | 'json'
   includeCharts: boolean
   includeAchievements: boolean
   includeCheckins: boolean
@@ -67,14 +67,33 @@ export function DataExport() {
   }, [user])
 
   const fetchUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    setUser(user)
+    try {
+      console.log('Fetching user from Supabase auth')
+      const { data: { user }, error } = await supabase.auth.getUser()
+      
+      if (error) {
+        console.error('Error fetching user:', error)
+        setUser(null)
+        return
+      }
+      
+      console.log('User fetched successfully:', user?.id)
+      setUser(user)
+    } catch (error) {
+      console.error('Error in fetchUser:', error)
+      setUser(null)
+    }
   }
 
   const fetchExportData = async () => {
-    if (!user) return
+    if (!user) {
+      console.log('No user found, skipping fetchExportData')
+      return
+    }
 
     try {
+      console.log('Fetching export data for user:', user.id)
+      
       // Fetch user's streaks
       const { data: streaks, error: streaksError } = await supabase
         .from('user_streaks')
@@ -90,15 +109,32 @@ export function DataExport() {
         `)
         .eq('user_id', user.id)
 
-      if (streaksError) throw streaksError
+      if (streaksError) {
+        console.error('Supabase error fetching streaks:', streaksError)
+        throw streaksError
+      }
 
-      // Fetch check-ins
-      const { data: checkins, error: checkinsError } = await supabase
-        .from('checkins')
-        .select('*')
-        .eq('user_id', user.id)
+      console.log('Successfully fetched streaks:', streaks)
 
-      if (checkinsError) throw checkinsError
+      // Fetch check-ins through user_streaks relationship
+      let checkins = []
+      if (streaks && streaks.length > 0) {
+        const userStreakIds = streaks.map(us => us.id)
+        const { data: checkinsData, error: checkinsError } = await supabase
+          .from('checkins')
+          .select('*')
+          .in('user_streak_id', userStreakIds)
+
+        if (checkinsError) {
+          console.error('Supabase error fetching checkins:', checkinsError)
+          throw checkinsError
+        }
+
+        checkins = checkinsData || []
+        console.log('Successfully fetched checkins:', checkins)
+      } else {
+        console.log('No streaks found, skipping checkins fetch')
+      }
 
       // Fetch achievements
       const { data: achievements, error: achievementsError } = await supabase
@@ -109,18 +145,27 @@ export function DataExport() {
         `)
         .eq('user_id', user.id)
 
-      if (achievementsError) throw achievementsError
+      if (achievementsError) {
+        console.error('Supabase error fetching achievements:', achievementsError)
+        throw achievementsError
+      }
+
+      console.log('Successfully fetched achievements:', achievements)
 
       // Calculate user stats
       const userStats = {
         totalStreaks: streaks?.length || 0,
         activeStreaks: streaks?.filter(s => s.current_streak_count > 0).length || 0,
-        longestStreak: Math.max(...(streaks?.map(s => s.longest_streak_count) || [0])),
+        longestStreak: streaks && streaks.length > 0 
+          ? Math.max(...streaks.map(s => s.longest_streak_count || 0).filter(count => !isNaN(count))) 
+          : 0,
         totalCheckins: checkins?.length || 0,
         totalAchievements: achievements?.length || 0,
         joinDate: user.created_at,
-        lastActive: checkins?.[0]?.created_at || user.created_at
+        lastActive: checkins?.[0]?.checkin_date || user.created_at
       }
+
+      console.log('Calculated user stats:', userStats)
 
       setExportData({
         streaks: streaks || [],
@@ -130,6 +175,27 @@ export function DataExport() {
       })
     } catch (error) {
       console.error('Error fetching export data:', error)
+      console.error('Error details:', {
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code
+      })
+      // Set empty data to prevent further errors
+      setExportData({
+        streaks: [],
+        checkins: [],
+        achievements: [],
+        userStats: {
+          totalStreaks: 0,
+          activeStreaks: 0,
+          longestStreak: 0,
+          totalCheckins: 0,
+          totalAchievements: 0,
+          joinDate: user?.created_at || new Date().toISOString(),
+          lastActive: user?.created_at || new Date().toISOString()
+        }
+      })
     }
   }
 
@@ -182,6 +248,21 @@ export function DataExport() {
       printWindow.document.write(reportHTML)
       printWindow.document.close()
       printWindow.print()
+    }
+  }
+
+  const getStartDate = (dateRange: string): string => {
+    const now = new Date()
+    switch (dateRange) {
+      case 'month':
+        return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+      case 'quarter':
+        const quarterStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)
+        return quarterStart.toISOString().split('T')[0]
+      case 'year':
+        return new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0]
+      default:
+        return new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).toISOString().split('T')[0]
     }
   }
 
@@ -266,51 +347,55 @@ export function DataExport() {
 
     try {
       setLoading(true)
+      console.log('Starting export with options:', exportOptions)
+      
+      // Map frontend options to API format
+      const apiPayload = {
+        export_type: 'all', // Always export all data for now
+        format: exportOptions.format,
+        // Add date range if not 'all'
+        ...(exportOptions.dateRange !== 'all' && {
+          start_date: getStartDate(exportOptions.dateRange),
+          end_date: new Date().toISOString().split('T')[0]
+        })
+      }
+      
+      console.log('Sending API payload:', apiPayload)
+      
       const response = await fetch('/api/export', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          format: exportOptions.format,
-          includeCharts: exportOptions.includeCharts,
-          includeAchievements: exportOptions.includeAchievements,
-          includeCheckins: exportOptions.includeCheckins,
-          dateRange: exportOptions.dateRange,
-          streaks: exportOptions.streaks
-        })
+        body: JSON.stringify(apiPayload)
       })
 
       if (response.ok) {
+        const result = await response.json()
+        console.log('Export job created successfully:', result)
+        
+        // For now, we'll use the local data since the API creates a background job
+        // In a real app, you'd wait for the job to complete and download the file
+        
         if (exportOptions.format === 'csv') {
-          // Handle CSV download
-          const blob = await response.blob()
-          const url = window.URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = url
-          a.download = `golong-export-${new Date().toISOString().split('T')[0]}.csv`
-          document.body.appendChild(a)
-          a.click()
-          window.URL.revokeObjectURL(url)
-          document.body.removeChild(a)
-        } else {
-          // Handle JSON download
-          const data = await response.json()
-          const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' })
-          const url = window.URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = url
-          a.download = `golong-export-${new Date().toISOString().split('T')[0]}.json`
-          document.body.appendChild(a)
-          a.click()
-          window.URL.revokeObjectURL(url)
-          document.body.removeChild(a)
+          generateCSV(exportData.streaks, `golong-streaks-${new Date().toISOString().split('T')[0]}.csv`)
+          if (exportData.checkins.length > 0) {
+            generateCSV(exportData.checkins, `golong-checkins-${new Date().toISOString().split('T')[0]}.csv`)
+          }
+          if (exportData.achievements.length > 0) {
+            generateCSV(exportData.achievements, `golong-achievements-${new Date().toISOString().split('T')[0]}.csv`)
+          }
+        } else if (exportOptions.format === 'json') {
+          generateJSON(exportData, `golong-export-${new Date().toISOString().split('T')[0]}.json`)
+        } else if (exportOptions.format === 'pdf') {
+          generatePDF()
         }
         
         console.log('Export completed successfully!')
       } else {
         const result = await response.json()
         console.error('Export failed:', result.error)
+        console.error('Error details:', result.details)
       }
     } catch (error) {
       console.error('Error exporting data:', error)
@@ -390,9 +475,9 @@ export function DataExport() {
               <Target className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{exportData.userStats.totalStreaks}</div>
+              <div className="text-2xl font-bold">{exportData.userStats.totalStreaks || 0}</div>
               <p className="text-xs text-muted-foreground">
-                {exportData.userStats.activeStreaks} active
+                {exportData.userStats.activeStreaks || 0} active
               </p>
             </CardContent>
           </Card>
@@ -409,7 +494,7 @@ export function DataExport() {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{exportData.userStats.longestStreak}</div>
+              <div className="text-2xl font-bold">{exportData.userStats.longestStreak || 0}</div>
               <p className="text-xs text-muted-foreground">days</p>
             </CardContent>
           </Card>
@@ -426,7 +511,7 @@ export function DataExport() {
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{exportData.userStats.totalCheckins}</div>
+              <div className="text-2xl font-bold">{exportData.userStats.totalCheckins || 0}</div>
               <p className="text-xs text-muted-foreground">all time</p>
             </CardContent>
           </Card>
@@ -443,7 +528,7 @@ export function DataExport() {
               <Award className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{exportData.userStats.totalAchievements}</div>
+              <div className="text-2xl font-bold">{exportData.userStats.totalAchievements || 0}</div>
               <p className="text-xs text-muted-foreground">earned</p>
             </CardContent>
           </Card>
@@ -464,8 +549,7 @@ export function DataExport() {
               {[
                 { value: 'pdf', label: 'PDF Report', icon: FileText },
                 { value: 'csv', label: 'CSV Data', icon: FileSpreadsheet },
-                { value: 'json', label: 'JSON Data', icon: BarChart3 },
-                { value: 'image', label: 'Image', icon: Image }
+                { value: 'json', label: 'JSON Data', icon: BarChart3 }
               ].map(({ value, label, icon: Icon }) => (
                 <Button
                   key={value}

@@ -10,13 +10,15 @@ import { createClient } from '@/lib/supabase-client'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { motion } from 'framer-motion'
+import { useComments, useCreateComment, useDeleteComment } from '@/hooks/useApi'
+import { toast } from 'sonner'
 
 interface Comment {
   id: string
   content: string
   created_at: string
   updated_at: string
-  user: {
+  profiles: {
     id: string
     username: string
     avatar_url?: string
@@ -28,91 +30,52 @@ interface CommentsSectionProps {
 }
 
 export function CommentsSection({ streakId }: CommentsSectionProps) {
-  const [comments, setComments] = useState<Comment[]>([])
   const [newComment, setNewComment] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
   const [user, setUser] = useState<SupabaseUser | null>(null)
 
   const supabase = createClient()
+  
+  // Use our custom hooks
+  const { data: commentsData, loading, error, refetch } = useComments(streakId)
+  const { createComment, loading: submitting } = useCreateComment()
+  const { deleteComment, loading: deleting } = useDeleteComment()
+  
+  const comments = commentsData?.comments || []
 
   useEffect(() => {
-    fetchComments()
     fetchUser()
-  }, [streakId])
+  }, [])
 
   const fetchUser = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     setUser(user)
   }
 
-  const fetchComments = async () => {
-    try {
-      setLoading(true)
-      const response = await fetch(`/api/comments?streak_id=${streakId}`)
-      const result = await response.json()
-
-      if (response.ok) {
-        setComments(result.comments || [])
-      } else {
-        console.error('Error fetching comments:', result.error)
-        setComments([])
-      }
-    } catch (error) {
-      console.error('Error fetching comments:', error)
-      setComments([])
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleSubmitComment = async () => {
     if (!newComment.trim() || !user) return
 
-    setSubmitting(true)
     try {
-      const response = await fetch('/api/comments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          streak_id: streakId,
-          content: newComment.trim(),
-        })
+      await createComment({
+        streak_id: streakId,
+        content: newComment.trim(),
       })
-
-      const result = await response.json()
-
-      if (response.ok) {
-        setNewComment('')
-        // Add the new comment to the list
-        setComments(prev => [result.comment, ...prev])
-      } else {
-        console.error('Error creating comment:', result.error)
-      }
+      
+      setNewComment('')
+      toast.success('Comment posted successfully!')
+      refetch() // Refresh comments
     } catch (error) {
+      toast.error('Failed to post comment. Please try again.')
       console.error('Error creating comment:', error)
-    } finally {
-      setSubmitting(false)
     }
   }
 
   const handleDeleteComment = async (commentId: string) => {
     try {
-      const response = await fetch(`/api/comments?comment_id=${commentId}`, {
-        method: 'DELETE'
-      })
-
-      const result = await response.json()
-
-      if (response.ok) {
-        // Remove the comment from the list
-        setComments(prev => prev.filter(comment => comment.id !== commentId))
-      } else {
-        console.error('Error deleting comment:', result.error)
-      }
+      await deleteComment(commentId)
+      toast.success('Comment deleted successfully!')
+      refetch() // Refresh comments
     } catch (error) {
+      toast.error('Failed to delete comment. Please try again.')
       console.error('Error deleting comment:', error)
     }
   }
@@ -198,18 +161,18 @@ export function CommentsSection({ streakId }: CommentsSectionProps) {
                 className="flex gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src={comment.user.avatar_url} />
+                  <AvatarImage src={comment.profiles.avatar_url} />
                   <AvatarFallback>
-                    {comment.user.username.charAt(0).toUpperCase()}
+                    {comment.profiles.username.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium text-sm">{comment.user.username}</span>
+                    <span className="font-medium text-sm">{comment.profiles.username}</span>
                     <span className="text-xs text-gray-500">
                       {new Date(comment.created_at).toLocaleDateString()}
                     </span>
-                    {user?.id === comment.user.id && (
+                    {user?.id === comment.profiles.id && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="h-6 w-6 p-0">

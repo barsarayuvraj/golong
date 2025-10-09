@@ -36,6 +36,8 @@ import { createClient } from '@/lib/supabase-client'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { useAnalyticsRealtime } from '@/lib/use-realtime'
 import { motion } from 'framer-motion'
+import { useAnalytics } from '@/hooks/useApi'
+import { toast } from 'sonner'
 
 interface StreakAnalytics {
   totalStreaks: number
@@ -63,58 +65,31 @@ interface StreakAnalytics {
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00ff00', '#ff00ff']
 
 export function AnalyticsDashboard() {
-  const [analytics, setAnalytics] = useState<StreakAnalytics | null>(null)
-  const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month')
 
   const supabase = createClient()
+  
+  // Use our custom analytics hook
+  const { data: analyticsData, loading, error, refetch } = useAnalytics({
+    metric: 'overview',
+    period: timeRange
+  })
+  
+  const analytics = analyticsData?.analytics || null
 
   useEffect(() => {
     fetchUser()
   }, [])
-
-  useEffect(() => {
-    if (user) {
-      fetchAnalytics()
-    }
-  }, [user, timeRange])
 
   const fetchUser = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     setUser(user)
   }
 
-  const fetchAnalytics = async () => {
-    if (!user) return
-
-    try {
-      setLoading(true)
-      const response = await fetch(`/api/analytics?timeRange=${timeRange}`)
-      const result = await response.json()
-
-      if (response.ok) {
-        setAnalytics(result.analytics)
-      } else {
-        console.error('Error fetching analytics:', result.error)
-      }
-    } catch (error) {
-      console.error('Error fetching analytics:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const getStartDate = (range: 'week' | 'month' | 'year') => {
-    const now = new Date()
-    switch (range) {
-      case 'week':
-        return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-      case 'month':
-        return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-      case 'year':
-        return new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
-    }
+  const handleTimeRangeChange = (newRange: 'week' | 'month' | 'year') => {
+    setTimeRange(newRange)
+    // The hook will automatically refetch when timeRange changes
   }
 
   const calculateAnalytics = (streaks: any[], checkins: any[], range: 'week' | 'month' | 'year') => {
@@ -213,6 +188,56 @@ export function AnalyticsDashboard() {
     )
   }
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold">Analytics Dashboard</h2>
+            <p className="text-gray-600">Loading your analytics...</p>
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
+                <div className="h-4 w-4 bg-gray-200 rounded animate-pulse" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 w-16 bg-gray-200 rounded animate-pulse mb-2" />
+                <div className="h-3 w-24 bg-gray-200 rounded animate-pulse" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold">Analytics Dashboard</h2>
+            <p className="text-red-600">Error loading analytics: {error}</p>
+          </div>
+        </div>
+        <Card>
+          <CardContent className="p-6 text-center">
+            <p className="text-gray-500">Unable to load analytics data. Please try again later.</p>
+            <Button onClick={() => refetch()} className="mt-4">
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -227,7 +252,7 @@ export function AnalyticsDashboard() {
               key={range}
               variant={timeRange === range ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setTimeRange(range)}
+              onClick={() => handleTimeRangeChange(range)}
             >
               {range.charAt(0).toUpperCase() + range.slice(1)}
             </Button>
@@ -248,9 +273,9 @@ export function AnalyticsDashboard() {
               <Target className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{analytics.totalStreaks}</div>
+              <div className="text-2xl font-bold">{analytics?.streaks?.total || 0}</div>
               <p className="text-xs text-muted-foreground">
-                {analytics.activeStreaks} active
+                {analytics?.streaks?.active || 0} active
               </p>
             </CardContent>
           </Card>
@@ -267,7 +292,7 @@ export function AnalyticsDashboard() {
               <Flame className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{analytics.longestStreak}</div>
+              <div className="text-2xl font-bold">{analytics?.streaks?.longest || 0}</div>
               <p className="text-xs text-muted-foreground">days</p>
             </CardContent>
           </Card>
@@ -284,9 +309,12 @@ export function AnalyticsDashboard() {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{analytics.successRate.toFixed(1)}%</div>
+              <div className="text-2xl font-bold">
+                {analytics?.consistency?.average_current_streak ? 
+                  analytics.consistency.average_current_streak.toFixed(1) : '0.0'} days
+              </div>
               <p className="text-xs text-muted-foreground">
-                {analytics.totalDays} total days
+                {analytics?.consistency?.current_total_days || 0} total days
               </p>
             </CardContent>
           </Card>
@@ -303,7 +331,10 @@ export function AnalyticsDashboard() {
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{analytics.averageStreakLength.toFixed(1)}</div>
+              <div className="text-2xl font-bold">
+                {analytics?.consistency?.average_current_streak ? 
+                  analytics.consistency.average_current_streak.toFixed(1) : '0.0'}
+              </div>
               <p className="text-xs text-muted-foreground">days per streak</p>
             </CardContent>
           </Card>
@@ -327,14 +358,14 @@ export function AnalyticsDashboard() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={analytics.monthlyData}>
+                  <AreaChart data={analytics?.checkins?.daily_data || []}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
+                    <XAxis dataKey="date" />
                     <YAxis />
                     <Tooltip />
                     <Area 
                       type="monotone" 
-                      dataKey="days" 
+                      dataKey="count" 
                       stroke="#8884d8" 
                       fill="#8884d8" 
                       fillOpacity={0.3}
@@ -351,12 +382,12 @@ export function AnalyticsDashboard() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={analytics.weeklyData}>
+                  <BarChart data={analytics?.checkins?.daily_data || []}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="day" />
+                    <XAxis dataKey="date" />
                     <YAxis />
                     <Tooltip />
-                    <Bar dataKey="checkins" fill="#82ca9d" />
+                    <Bar dataKey="count" fill="#82ca9d" />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -372,14 +403,14 @@ export function AnalyticsDashboard() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={analytics.monthlyData}>
+                <LineChart data={analytics?.checkins?.daily_data || []}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
+                  <XAxis dataKey="date" />
                   <YAxis />
                   <Tooltip />
                   <Line 
                     type="monotone" 
-                    dataKey="streaks" 
+                    dataKey="count" 
                     stroke="#8884d8" 
                     strokeWidth={2}
                   />
@@ -396,25 +427,39 @@ export function AnalyticsDashboard() {
               <CardDescription>Distribution of your streaks by category</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <PieChart>
-                  <Pie
-                    data={analytics.categoryData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ category, percent }) => `${category} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="count"
-                  >
-                    {analytics.categoryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+              {analytics?.streaks?.current_streaks?.length > 0 ? (
+                <ResponsiveContainer width="100%" height={400}>
+                  <PieChart>
+                    <Pie
+                      data={analytics.streaks.current_streaks.map((streak: any, index: number) => ({
+                        category: streak.name || 'Unnamed Streak',
+                        count: streak.days || 0,
+                        color: COLORS[index % COLORS.length]
+                      }))}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ category, percent }) => `${category} ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="count"
+                    >
+                      {analytics.streaks.current_streaks.map((entry: any, index: number) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-96 text-gray-500">
+                  <div className="text-center">
+                    <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No streak data available yet</p>
+                    <p className="text-sm">Start some streaks to see your category distribution</p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

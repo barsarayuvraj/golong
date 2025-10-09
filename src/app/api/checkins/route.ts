@@ -2,18 +2,78 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { z } from 'zod'
 
+// Validation schemas
 const checkinSchema = z.object({
-  streak_id: z.string().uuid(),
-  checkin_date: z.string().optional(), // Optional, defaults to today
+  user_streak_id: z.string().uuid(),
+  checkin_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 })
 
+const updateCheckinSchema = z.object({
+  checkin_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+})
+
+// GET /api/checkins - Get checkins for a user or streak
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const user_streak_id = searchParams.get('user_streak_id')
+    const streak_id = searchParams.get('streak_id')
+    const user_id = searchParams.get('user_id')
+    const limit = parseInt(searchParams.get('limit') || '50')
+    const offset = parseInt(searchParams.get('offset') || '0')
+
+    let query = supabase
+      .from('checkins')
+      .select(`
+        *,
+        user_streaks!inner(
+          *,
+          streaks(*),
+          profiles(*)
+        )
+      `)
+      .order('checkin_date', { ascending: false })
+      .range(offset, offset + limit - 1)
+
+    // Apply filters
+    if (user_streak_id) {
+      query = query.eq('user_streak_id', user_streak_id)
+    } else if (streak_id) {
+      query = query.eq('user_streaks.streak_id', streak_id)
+    } else if (user_id) {
+      query = query.eq('user_streaks.user_id', user_id)
+    } else {
+      // Default: get user's own checkins
+      query = query.eq('user_streaks.user_id', user.id)
+    }
+
+    const { data: checkins, error } = await query
+
+    if (error) {
+      console.error('Error fetching checkins:', error)
+      return NextResponse.json({ error: 'Failed to fetch checkins' }, { status: 500 })
+    }
+
+    return NextResponse.json({ checkins })
+  } catch (error) {
+    console.error('Checkins GET error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+// POST /api/checkins - Create a new checkin
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    
-    // Get the current user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
+
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -21,218 +81,173 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = checkinSchema.parse(body)
 
-    // Check if user is part of this streak
+    // Verify the user owns this user_streak
     const { data: userStreak, error: userStreakError } = await supabase
       .from('user_streaks')
-      .select('id, current_streak_days, longest_streak_days, last_checkin_date')
+      .select('*')
+      .eq('id', validatedData.user_streak_id)
       .eq('user_id', user.id)
-      .eq('streak_id', validatedData.streak_id)
-      .eq('is_active', true)
       .single()
 
     if (userStreakError || !userStreak) {
-      return NextResponse.json({ 
-        error: 'User is not part of this streak or streak not found' 
-      }, { status: 404 })
+      return NextResponse.json({ error: 'User streak not found' }, { status: 404 })
     }
 
-    // Determine check-in date (default to today)
-    const checkinDate = validatedData.checkin_date 
-      ? new Date(validatedData.checkin_date).toISOString().split('T')[0]
-      : new Date().toISOString().split('T')[0]
-
-    // Check if user already checked in today
+    // Check if checkin already exists for this date
     const { data: existingCheckin, error: existingError } = await supabase
       .from('checkins')
       .select('id')
-      .eq('user_streak_id', userStreak.id)
-      .eq('checkin_date', checkinDate)
+      .eq('user_streak_id', validatedData.user_streak_id)
+      .eq('checkin_date', validatedData.checkin_date)
       .single()
 
     if (existingCheckin) {
-      return NextResponse.json({ 
-        error: 'Already checked in for this date',
-        checkin_id: existingCheckin.id
-      }, { status: 409 })
+      return NextResponse.json({ error: 'Checkin already exists for this date' }, { status: 409 })
     }
 
-    // Create the check-in
-    const { data: checkin, error: checkinError } = await supabase
+    // Create the checkin
+    const { data: checkin, error } = await supabase
       .from('checkins')
       .insert({
-        user_streak_id: userStreak.id,
-        checkin_date: checkinDate,
+        user_streak_id: validatedData.user_streak_id,
+        checkin_date: validatedData.checkin_date,
       })
-      .select()
+      .select(`
+        *,
+        user_streaks!inner(
+          *,
+          streaks(*),
+          profiles(*)
+        )
+      `)
       .single()
 
-    if (checkinError) {
-      console.error('Error creating checkin:', checkinError)
-      return NextResponse.json({ error: 'Failed to create check-in' }, { status: 500 })
+    if (error) {
+      console.error('Error creating checkin:', error)
+      return NextResponse.json({ error: 'Failed to create checkin' }, { status: 500 })
     }
 
-    // Get updated streak data
-    const { data: updatedUserStreak, error: updateError } = await supabase
-      .from('user_streaks')
-      .select('current_streak_days, longest_streak_days, last_checkin_date')
-      .eq('id', userStreak.id)
-      .single()
-
-    if (updateError) {
-      console.error('Error fetching updated streak:', updateError)
-    }
-
-    return NextResponse.json({ 
-      id: checkin.id,
-      checkin_date: checkin.checkin_date,
-      current_streak_days: updatedUserStreak?.current_streak_days || 0,
-      longest_streak_days: updatedUserStreak?.longest_streak_days || 0,
-      message: 'Check-in successful!' 
-    })
-
+    return NextResponse.json({ checkin }, { status: 201 })
   } catch (error) {
-    console.error('Error in check-in API:', error)
-    
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ 
-        error: 'Invalid data', 
-        details: error.issues 
-      }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid input', details: error.errors }, { status: 400 })
     }
-
-    return NextResponse.json({ 
-      error: 'Internal server error' 
-    }, { status: 500 })
+    console.error('Checkins POST error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-export async function GET(request: NextRequest) {
+// PUT /api/checkins - Update a checkin
+export async function PUT(request: NextRequest) {
   try {
     const supabase = await createClient()
-    
-    // Get the current user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
+
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
-    const streakId = searchParams.get('streak_id')
-    const startDate = searchParams.get('start_date')
-    const endDate = searchParams.get('end_date')
+    const checkinId = searchParams.get('id')
 
-    if (!streakId) {
-      return NextResponse.json({ error: 'streak_id is required' }, { status: 400 })
+    if (!checkinId) {
+      return NextResponse.json({ error: 'Checkin ID is required' }, { status: 400 })
     }
 
-    // Check if user is part of this streak
-    const { data: userStreak, error: userStreakError } = await supabase
-      .from('user_streaks')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('streak_id', streakId)
-      .eq('is_active', true)
+    const body = await request.json()
+    const validatedData = updateCheckinSchema.parse(body)
+
+    // Verify the user owns this checkin
+    const { data: existingCheckin, error: existingError } = await supabase
+      .from('checkins')
+      .select(`
+        *,
+        user_streaks!inner(*)
+      `)
+      .eq('id', checkinId)
+      .eq('user_streaks.user_id', user.id)
       .single()
 
-    if (userStreakError || !userStreak) {
-      return NextResponse.json({ 
-        error: 'User is not part of this streak or streak not found' 
-      }, { status: 404 })
+    if (existingError || !existingCheckin) {
+      return NextResponse.json({ error: 'Checkin not found' }, { status: 404 })
     }
 
-    // Build query for check-ins
-    let query = supabase
+    // Update the checkin
+    const { data: checkin, error } = await supabase
       .from('checkins')
-      .select('id, checkin_date, created_at')
-      .eq('user_streak_id', userStreak.id)
-      .order('checkin_date', { ascending: false })
+      .update(validatedData)
+      .eq('id', checkinId)
+      .select(`
+        *,
+        user_streaks!inner(
+          *,
+          streaks(*),
+          profiles(*)
+        )
+      `)
+      .single()
 
-    // Add date filters if provided
-    if (startDate) {
-      query = query.gte('checkin_date', startDate)
-    }
-    if (endDate) {
-      query = query.lte('checkin_date', endDate)
-    }
-
-    const { data: checkins, error: checkinsError } = await query
-
-    if (checkinsError) {
-      console.error('Error fetching checkins:', checkinsError)
-      return NextResponse.json({ error: 'Failed to fetch check-ins' }, { status: 500 })
+    if (error) {
+      console.error('Error updating checkin:', error)
+      return NextResponse.json({ error: 'Failed to update checkin' }, { status: 500 })
     }
 
-    return NextResponse.json({ 
-      checkins: checkins || [],
-      total: checkins?.length || 0
-    })
-
+    return NextResponse.json({ checkin })
   } catch (error) {
-    console.error('Error in check-in GET API:', error)
-    return NextResponse.json({ 
-      error: 'Internal server error' 
-    }, { status: 500 })
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Invalid input', details: error.errors }, { status: 400 })
+    }
+    console.error('Checkins PUT error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
+// DELETE /api/checkins - Delete a checkin
 export async function DELETE(request: NextRequest) {
   try {
     const supabase = await createClient()
-    
-    // Get the current user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
+
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
-    const checkinId = searchParams.get('checkin_id')
+    const checkinId = searchParams.get('id')
 
     if (!checkinId) {
-      return NextResponse.json({ error: 'checkin_id is required' }, { status: 400 })
+      return NextResponse.json({ error: 'Checkin ID is required' }, { status: 400 })
     }
 
-    // Verify the check-in belongs to the user
-    const { data: checkin, error: checkinError } = await supabase
+    // Verify the user owns this checkin
+    const { data: existingCheckin, error: existingError } = await supabase
       .from('checkins')
       .select(`
-        id,
-        user_streak:user_streaks!inner (
-          user_id
-        )
+        *,
+        user_streaks!inner(*)
       `)
       .eq('id', checkinId)
+      .eq('user_streaks.user_id', user.id)
       .single()
 
-    if (checkinError || !checkin) {
-      return NextResponse.json({ error: 'Check-in not found' }, { status: 404 })
+    if (existingError || !existingCheckin) {
+      return NextResponse.json({ error: 'Checkin not found' }, { status: 404 })
     }
 
-    if (checkin.user_streak.user_id !== user.id) {
-      return NextResponse.json({ error: 'Unauthorized to delete this check-in' }, { status: 403 })
-    }
-
-    // Delete the check-in
-    const { error: deleteError } = await supabase
+    // Delete the checkin
+    const { error } = await supabase
       .from('checkins')
       .delete()
       .eq('id', checkinId)
 
-    if (deleteError) {
-      console.error('Error deleting checkin:', deleteError)
-      return NextResponse.json({ error: 'Failed to delete check-in' }, { status: 500 })
+    if (error) {
+      console.error('Error deleting checkin:', error)
+      return NextResponse.json({ error: 'Failed to delete checkin' }, { status: 500 })
     }
 
-    return NextResponse.json({ 
-      message: 'Check-in deleted successfully' 
-    })
-
+    return NextResponse.json({ message: 'Checkin deleted successfully' })
   } catch (error) {
-    console.error('Error in check-in DELETE API:', error)
-    return NextResponse.json({ 
-      error: 'Internal server error' 
-    }, { status: 500 })
+    console.error('Checkins DELETE error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

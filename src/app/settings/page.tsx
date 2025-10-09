@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,16 +8,32 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { User, Mail, Bell, Shield, Save } from 'lucide-react'
+import { User, Mail, Bell, Shield, Save, Upload, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase-client'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { motion } from 'framer-motion'
+import { toast } from 'sonner'
 
 export default function SettingsPage() {
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [showDefaultAvatars, setShowDefaultAvatars] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // Default avatar options
+  const defaultAvatars = [
+    { id: 'default-1', url: '/avatars/default-1.svg', name: 'Blue Avatar', color: '#3B82F6' },
+    { id: 'default-2', url: '/avatars/default-2.svg', name: 'Green Avatar', color: '#10B981' },
+    { id: 'default-3', url: '/avatars/default-3.svg', name: 'Orange Avatar', color: '#F59E0B' },
+    { id: 'default-4', url: '/avatars/default-4.svg', name: 'Red Avatar', color: '#EF4444' },
+    { id: 'default-5', url: '/avatars/default-5.svg', name: 'Purple Avatar', color: '#8B5CF6' },
+    { id: 'default-6', url: '/avatars/default-6.svg', name: 'Cyan Avatar', color: '#06B6D4' },
+  ]
   const [formData, setFormData] = useState({
     username: '',
     display_name: '',
@@ -60,6 +76,126 @@ export default function SettingsPage() {
     }
   }
 
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file')
+      return
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('File size must be less than 5MB')
+      return
+    }
+
+    setSelectedFile(file)
+    
+    // Create preview URL
+    const url = URL.createObjectURL(file)
+    setPreviewUrl(url)
+  }
+
+  const handleAvatarUpload = async () => {
+    if (!user || !selectedFile) return
+
+    setUploadingAvatar(true)
+    try {
+      // Create a unique filename
+      const fileExt = selectedFile.name.split('.').pop()
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`
+      const filePath = `avatars/${fileName}`
+
+      // Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, selectedFile, {
+          cacheControl: '3600',
+          upsert: true
+        })
+
+      if (uploadError) throw uploadError
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath)
+
+      const avatarUrl = urlData.publicUrl
+
+      // Update profile with new avatar URL
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          avatar_url: avatarUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id)
+
+      if (updateError) throw updateError
+
+      // Update local state
+      setProfile({ ...profile, avatar_url: avatarUrl })
+      setSelectedFile(null)
+      setPreviewUrl(null)
+      
+      // Clear file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+
+      toast.success('Avatar updated successfully!')
+    } catch (error) {
+      console.error('Error uploading avatar:', error)
+      toast.error('Error uploading avatar. Please try again.')
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
+  const handleCancelAvatar = () => {
+    setSelectedFile(null)
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl)
+      setPreviewUrl(null)
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handleDefaultAvatarSelect = async (avatarUrl: string) => {
+    if (!user) return
+
+    setUploadingAvatar(true)
+    try {
+      // Update profile with default avatar URL
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          avatar_url: avatarUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id)
+
+      if (updateError) throw updateError
+
+      // Update local state
+      setProfile({ ...profile, avatar_url: avatarUrl })
+      setShowDefaultAvatars(false)
+      
+      toast.success('Avatar updated successfully!')
+    } catch (error) {
+      console.error('Error updating avatar:', error)
+      toast.error('Error updating avatar. Please try again.')
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
   const handleSave = async () => {
     if (!user) return
 
@@ -77,11 +213,10 @@ export default function SettingsPage() {
 
       if (error) throw error
 
-      // Show success message
-      alert('Settings saved successfully!')
+      toast.success('Settings saved successfully!')
     } catch (error) {
       console.error('Error saving settings:', error)
-      alert('Error saving settings. Please try again.')
+      toast.error('Error saving settings. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -124,18 +259,101 @@ export default function SettingsPage() {
             <CardContent className="space-y-6">
               <div className="flex items-center gap-4">
                 <Avatar className="h-20 w-20">
-                  <AvatarImage src={profile?.avatar_url} />
+                  <AvatarImage src={previewUrl || profile?.avatar_url} />
                   <AvatarFallback className="text-lg">
                     {profile?.username?.charAt(0)?.toUpperCase() || 'U'}
                   </AvatarFallback>
                 </Avatar>
-                <div>
-                  <Button variant="outline" size="sm">
-                    Change Avatar
-                  </Button>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Avatar upload coming soon
+                <div className="space-y-3">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                  
+                  <div className="flex gap-2">
+                    {!selectedFile ? (
+                      <>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          <Upload className="h-4 w-4 mr-2" />
+                          Upload Image
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => setShowDefaultAvatars(!showDefaultAvatars)}
+                        >
+                          Choose Default
+                        </Button>
+                      </>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Button 
+                          size="sm"
+                          onClick={handleAvatarUpload}
+                          disabled={uploadingAvatar}
+                        >
+                          {uploadingAvatar ? 'Uploading...' : 'Upload Avatar'}
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={handleCancelAvatar}
+                          disabled={uploadingAvatar}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <p className="text-sm text-gray-500">
+                    {selectedFile 
+                      ? `Selected: ${selectedFile.name}` 
+                      : 'Upload a new profile picture (max 5MB) or choose from defaults'
+                    }
                   </p>
+
+                  {/* Default Avatar Selection */}
+                  {showDefaultAvatars && (
+                    <div className="mt-4 p-4 border rounded-lg bg-gray-50">
+                      <h4 className="text-sm font-medium mb-3">Choose a Default Avatar</h4>
+                      <div className="grid grid-cols-3 gap-3">
+                        {defaultAvatars.map((avatar) => (
+                          <button
+                            key={avatar.id}
+                            onClick={() => handleDefaultAvatarSelect(avatar.url)}
+                            disabled={uploadingAvatar}
+                            className="relative group"
+                          >
+                            <Avatar className="h-16 w-16 mx-auto border-2 border-transparent group-hover:border-blue-500 transition-colors">
+                              <AvatarImage src={avatar.url} alt={avatar.name} />
+                              <AvatarFallback className="text-sm">
+                                {avatar.name}
+                              </AvatarFallback>
+                            </Avatar>
+                            <p className="text-xs text-center mt-1 text-gray-600">
+                              {avatar.name}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="mt-3"
+                        onClick={() => setShowDefaultAvatars(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
 
