@@ -1,103 +1,307 @@
-import Image from "next/image";
+'use client'
+
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase-client'
+import { User as SupabaseUser } from '@supabase/supabase-js'
+import Navbar from '@/components/navbar'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Flame, Users, TrendingUp, Plus, Sparkles, Zap } from 'lucide-react'
+import Link from 'next/link'
+import { motion } from 'framer-motion'
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [user, setUser] = useState<SupabaseUser | null>(null)
+  const [loading, setLoading] = useState(true)
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  const supabase = createClient()
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
+      setLoading(false)
+    }
+
+    getUser()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event: any, session: any) => {
+        setUser(session?.user ?? null)
+      }
+    )
+
+    return () => subscription.unsubscribe()
+  }, [supabase.auth])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          className="rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600"
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+      <Navbar />
+      
+      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        {/* Hero Section */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="text-center py-16"
+        >
+          <motion.div
+            initial={{ scale: 0.8 }}
+            animate={{ scale: 1 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="inline-flex items-center gap-2 mb-6 px-4 py-2 bg-blue-100 rounded-full text-blue-700 text-sm font-medium"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            <Sparkles className="h-4 w-4" />
+            Join thousands building better habits
+          </motion.div>
+          
+          <motion.h1 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.3 }}
+            className="text-5xl font-bold text-gray-900 sm:text-7xl mb-6"
           >
-            Read our docs
-          </a>
-        </div>
+            Go Long on Your
+            <motion.span 
+              className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600"
+              animate={{ 
+                backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"]
+              }}
+              transition={{ 
+                duration: 3, 
+                repeat: Infinity, 
+                ease: "linear" 
+              }}
+            >
+              {" "}Streaks
+            </motion.span>
+          </motion.h1>
+          
+          <motion.p 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            className="mt-6 text-xl leading-8 text-gray-600 max-w-3xl mx-auto"
+          >
+            Create, join, and track any kind of streak with your community. 
+            From fitness goals to quirky challenges - go long on what matters to you.
+          </motion.p>
+          
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.5 }}
+            className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-4"
+          >
+            {user ? (
+              <Link href="/explore">
+                <motion.div
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <Button size="lg" className="text-lg px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg">
+                    <Flame className="mr-2 h-5 w-5" />
+                    Explore Streaks
+                  </Button>
+                </motion.div>
+              </Link>
+            ) : (
+              <Link href="/auth">
+                <motion.div
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <Button size="lg" className="text-lg px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg">
+                    <Zap className="mr-2 h-5 w-5" />
+                    Get Started
+                  </Button>
+                </motion.div>
+              </Link>
+            )}
+            <Link href="/create">
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Button variant="outline" size="lg" className="text-lg px-8 py-4 border-2 hover:bg-gray-50">
+                  <Plus className="mr-2 h-5 w-5" />
+                  Create Streak
+                </Button>
+              </motion.div>
+            </Link>
+          </motion.div>
+        </motion.div>
+
+        {/* Features Section */}
+        <motion.div 
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          viewport={{ once: true }}
+          className="py-20"
+        >
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Why Choose GoLong?</h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Built for modern habits and community-driven motivation
+            </p>
+          </motion.div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              {
+                icon: Flame,
+                title: "Any Streak, Any Goal",
+                description: "Track anything - from 'no YouTube for 30 days' to 'daily coding for 100 days'",
+                content: "No limits on what you can streak. Be creative, be quirky, be you.",
+                color: "text-orange-500",
+                bgColor: "bg-orange-50",
+                delay: 0.1
+              },
+              {
+                icon: Users,
+                title: "Community Driven",
+                description: "Join public streaks, compete on leaderboards, and find your streak tribe",
+                content: "Discover new challenges and stay motivated with others on the same journey.",
+                color: "text-blue-500",
+                bgColor: "bg-blue-50",
+                delay: 0.2
+              },
+              {
+                icon: TrendingUp,
+                title: "Track Progress",
+                description: "Visualize your progress with streaks, stats, and achievement tracking",
+                content: "See how far you've come and celebrate every milestone along the way.",
+                color: "text-green-500",
+                bgColor: "bg-green-50",
+                delay: 0.3
+              }
+            ].map((feature, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 40 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: feature.delay }}
+                viewport={{ once: true }}
+                whileHover={{ y: -5 }}
+              >
+                <Card className="h-full hover:shadow-xl transition-all duration-300 border-0 shadow-lg">
+                  <CardHeader className="text-center">
+                    <motion.div
+                      whileHover={{ scale: 1.1, rotate: 5 }}
+                      className={`inline-flex items-center justify-center w-16 h-16 rounded-full ${feature.bgColor} mb-4`}
+                    >
+                      <feature.icon className={`h-8 w-8 ${feature.color}`} />
+                    </motion.div>
+                    <CardTitle className="text-xl font-bold">{feature.title}</CardTitle>
+                    <CardDescription className="text-base">
+                      {feature.description}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-600 text-center">
+                      {feature.content}
+                    </p>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Popular Streaks Preview */}
+        <motion.div 
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          viewport={{ once: true }}
+          className="py-20"
+        >
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Popular Streak Ideas</h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Get inspired by what others are building
+            </p>
+          </motion.div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              { title: "No Social Media", days: 30, participants: 1247, color: "bg-red-500" },
+              { title: "Daily Exercise", days: 100, participants: 892, color: "bg-green-500" },
+              { title: "Read 1 Hour", days: 365, participants: 654, color: "bg-blue-500" },
+              { title: "No Soda", days: 60, participants: 432, color: "bg-orange-500" },
+              { title: "Meditate Daily", days: 21, participants: 789, color: "bg-purple-500" },
+              { title: "Learn Spanish", days: 90, participants: 321, color: "bg-pink-500" },
+            ].map((streak, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 40 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: index * 0.1 }}
+                viewport={{ once: true }}
+                whileHover={{ y: -8, scale: 1.02 }}
+              >
+                <Card className="h-full hover:shadow-2xl transition-all duration-300 border-0 shadow-lg overflow-hidden group">
+                  <div className={`h-2 ${streak.color} w-full`} />
+                  <CardHeader>
+                    <CardTitle className="text-lg font-bold group-hover:text-blue-600 transition-colors">
+                      {streak.title}
+                    </CardTitle>
+                    <CardDescription className="flex items-center gap-2">
+                      <Badge variant="secondary" className="bg-gray-100">
+                        {streak.days} days
+                      </Badge>
+                      <span className="text-sm text-gray-500 flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        {streak.participants.toLocaleString()} participants
+                      </span>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-600">
+                      Join thousands of people working on this streak together.
+                    </p>
+                    <motion.div
+                      whileHover={{ scale: 1.05 }}
+                      className="mt-4"
+                    >
+                      <Button variant="outline" size="sm" className="w-full">
+                        Join Streak
+                      </Button>
+                    </motion.div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
-  );
+  )
 }
