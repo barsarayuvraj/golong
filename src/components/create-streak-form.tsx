@@ -102,10 +102,12 @@ export default function CreateStreakForm() {
       }
 
       const result = await response.json()
+      console.log('Streak creation result:', result)
       setMessage('Streak created successfully!')
       
       // Redirect to the new streak page
       setTimeout(() => {
+        console.log('Redirecting to streak:', result.id)
         router.push(`/streaks/${result.id}`)
       }, 1000)
 

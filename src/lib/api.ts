@@ -62,7 +62,15 @@ export class ApiService {
   }
 
   static async getStreak(id: string) {
-    return apiRequest(`/api/streaks/${id}`)
+    console.log('Fetching streak with ID:', id)
+    try {
+      const result = await apiRequest(`/api/streaks/${id}`)
+      console.log('Streak fetch result:', result)
+      return result
+    } catch (error) {
+      console.error('Error fetching streak:', error)
+      throw error
+    }
   }
 
   static async createStreak(data: {
