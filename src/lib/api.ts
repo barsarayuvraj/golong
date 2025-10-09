@@ -5,16 +5,28 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
 
 // Helper function to get auth headers
 async function getAuthHeaders() {
-  const supabase = createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  
-  if (!session?.access_token) {
-    throw new Error('No authentication token found')
-  }
-  
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${session.access_token}`
+  try {
+    const supabase = createClient()
+    const { data: { session }, error } = await supabase.auth.getSession()
+    
+    if (error) {
+      console.error('Error getting session:', error)
+      throw new Error('Failed to get authentication session')
+    }
+    
+    if (!session?.access_token) {
+      console.error('No access token found in session')
+      throw new Error('No authentication token found')
+    }
+    
+    console.log('Auth headers created successfully')
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`
+    }
+  } catch (error) {
+    console.error('Error creating auth headers:', error)
+    throw error
   }
 }
 
