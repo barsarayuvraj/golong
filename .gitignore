@@ -65,9 +65,3 @@ temp/
 # Build artifacts
 dist/
 build/
-
-# Large image files (screenshots, etc.)
-*.png
-*.jpg
-*.jpeg
-*.gif
