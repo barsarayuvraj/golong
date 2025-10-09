@@ -235,7 +235,7 @@ export function AchievementSystem() {
       }
     })
 
-    setAchievementProgress(progress)
+    // Progress is now handled by the API hook
   }
 
   const getAchievementIcon = (iconName: string) => {

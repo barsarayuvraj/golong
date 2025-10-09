@@ -15,6 +15,17 @@ const notificationPreferencesSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
+    
+    if (!supabase) {
+      console.error('Supabase client is null/undefined')
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 })
+    }
+    
+    if (!supabase.auth) {
+      console.error('Supabase auth is null/undefined')
+      return NextResponse.json({ error: 'Authentication service unavailable' }, { status: 500 })
+    }
+    
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
@@ -69,6 +80,12 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const supabase = await createClient()
+    
+    if (!supabase || !supabase.auth) {
+      console.error('Supabase client or auth is null/undefined')
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 })
+    }
+    
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
@@ -120,6 +137,12 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const supabase = await createClient()
+    
+    if (!supabase || !supabase.auth) {
+      console.error('Supabase client or auth is null/undefined')
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 })
+    }
+    
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {

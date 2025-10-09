@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu'
-import { LogOut, User as UserIcon, Settings, Flame, Plus, Shield, Sparkles, BarChart3, Trophy, Calendar, Bell, Award, Users, Download, Code, Menu, X } from 'lucide-react'
+import { LogOut, User as UserIcon, Settings, Flame, Plus, Shield, Sparkles, BarChart3, Trophy, Calendar, Bell, Award, Users, Download, Code, Menu, X, Target, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { NotificationsDropdown } from './notifications-dropdown'
@@ -109,6 +109,44 @@ export default function Navbar() {
           <div className="hidden lg:flex items-center space-x-2">
             {user ? (
               <>
+                {/* My Streaks - New Primary Action */}
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Link href="/my-streaks">
+                    <Button variant="ghost" size="sm" className="flex items-center gap-1 bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 text-green-700 border border-green-200">
+                      <Target className="h-4 w-4" />
+                      <span className="hidden xl:inline">My Streaks</span>
+                    </Button>
+                  </Link>
+                </motion.div>
+
+                {/* Gamification Features */}
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Link href="/challenges">
+                    <Button variant="ghost" size="sm" className="flex items-center gap-1 bg-gradient-to-r from-yellow-50 to-orange-50 hover:from-yellow-100 hover:to-orange-100 text-orange-700 border border-orange-200">
+                      <Trophy className="h-4 w-4" />
+                      <span className="hidden xl:inline">Challenges</span>
+                    </Button>
+                  </Link>
+                </motion.div>
+
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Link href="/groups">
+                    <Button variant="ghost" size="sm" className="flex items-center gap-1 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-blue-700 border border-blue-200">
+                      <Users className="h-4 w-4" />
+                      <span className="hidden xl:inline">Groups</span>
+                    </Button>
+                  </Link>
+                </motion.div>
+
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Link href="/achievements">
+                    <Button variant="ghost" size="sm" className="flex items-center gap-1 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 text-purple-700 border border-purple-200">
+                      <Award className="h-4 w-4" />
+                      <span className="hidden xl:inline">Achievements</span>
+                    </Button>
+                  </Link>
+                </motion.div>
+
                 {/* Primary Actions */}
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                   <Link href="/explore">
@@ -128,12 +166,12 @@ export default function Navbar() {
                   </Link>
                 </motion.div>
 
-                {/* Features Dropdown */}
+                {/* Features Dropdown - Streamlined */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="sm" className="flex items-center gap-1">
-                      <Menu className="h-4 w-4" />
-                      <span className="hidden xl:inline">Features</span>
+                      <Zap className="h-4 w-4" />
+                      <span className="hidden xl:inline">Tools</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-48" align="end">
@@ -150,12 +188,6 @@ export default function Navbar() {
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/challenges" className="flex items-center">
-                        <Trophy className="mr-2 h-4 w-4" />
-                        Challenges
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
                       <Link href="/calendar" className="flex items-center">
                         <Calendar className="mr-2 h-4 w-4" />
                         Calendar
@@ -165,18 +197,6 @@ export default function Navbar() {
                       <Link href="/reminders" className="flex items-center">
                         <Bell className="mr-2 h-4 w-4" />
                         Reminders
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/achievements" className="flex items-center">
-                        <Award className="mr-2 h-4 w-4" />
-                        Achievements
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/groups" className="flex items-center">
-                        <Users className="mr-2 h-4 w-4" />
-                        Groups
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
@@ -287,6 +307,35 @@ export default function Navbar() {
             <div className="px-2 pt-2 pb-3 space-y-1">
               {user ? (
                 <>
+                  {/* My Streaks - New Primary Action */}
+                  <Link href="/my-streaks" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100 bg-green-50 border border-green-200">
+                    <div className="flex items-center gap-2 text-green-700">
+                      <Target className="h-4 w-4" />
+                      My Streaks
+                    </div>
+                  </Link>
+
+                  {/* Gamification Features */}
+                  <Link href="/challenges" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100 bg-yellow-50 border border-yellow-200">
+                    <div className="flex items-center gap-2 text-orange-700">
+                      <Trophy className="h-4 w-4" />
+                      Challenges
+                    </div>
+                  </Link>
+                  <Link href="/groups" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100 bg-blue-50 border border-blue-200">
+                    <div className="flex items-center gap-2 text-blue-700">
+                      <Users className="h-4 w-4" />
+                      Groups
+                    </div>
+                  </Link>
+                  <Link href="/achievements" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100 bg-purple-50 border border-purple-200">
+                    <div className="flex items-center gap-2 text-purple-700">
+                      <Award className="h-4 w-4" />
+                      Achievements
+                    </div>
+                  </Link>
+
+                  {/* Primary Actions */}
                   <Link href="/explore" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100">
                     <div className="flex items-center gap-2">
                       <Flame className="h-4 w-4" />
@@ -300,7 +349,7 @@ export default function Navbar() {
                     </div>
                   </Link>
                   <div className="border-t pt-2 mt-2">
-                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 py-1">Features</div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 py-1">Tools</div>
                     <Link href="/templates" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100">
                       <div className="flex items-center gap-2">
                         <Sparkles className="h-4 w-4" />
@@ -313,12 +362,6 @@ export default function Navbar() {
                         Analytics
                       </div>
                     </Link>
-                    <Link href="/challenges" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100">
-                      <div className="flex items-center gap-2">
-                        <Trophy className="h-4 w-4" />
-                        Challenges
-                      </div>
-                    </Link>
                     <Link href="/calendar" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100">
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4" />
@@ -329,18 +372,6 @@ export default function Navbar() {
                       <div className="flex items-center gap-2">
                         <Bell className="h-4 w-4" />
                         Reminders
-                      </div>
-                    </Link>
-                    <Link href="/achievements" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100">
-                      <div className="flex items-center gap-2">
-                        <Award className="h-4 w-4" />
-                        Achievements
-                      </div>
-                    </Link>
-                    <Link href="/groups" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        Groups
                       </div>
                     </Link>
                     <Link href="/export" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100">
