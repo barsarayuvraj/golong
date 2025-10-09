@@ -28,16 +28,28 @@ export default function AuthForm({ mode, onToggleMode }: AuthFormProps) {
     setMessage('')
 
     try {
+      console.log(`Attempting ${provider} OAuth sign in...`)
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
           redirectTo: `${window.location.origin}/`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
         },
       })
 
-      if (error) throw error
+      if (error) {
+        console.error(`${provider} OAuth error:`, error)
+        throw error
+      }
+      
+      console.log(`${provider} OAuth initiated successfully`)
     } catch (error: any) {
-      setMessage(error.message)
+      console.error(`${provider} OAuth failed:`, error)
+      setMessage(`Failed to sign in with ${provider}: ${error.message}`)
       setLoading(false)
     }
   }
@@ -92,8 +104,7 @@ export default function AuthForm({ mode, onToggleMode }: AuthFormProps) {
         <div className="space-y-3 mb-6">
           <Button
             type="button"
-            variant="outline"
-            className="w-full"
+            className="w-full bg-gradient-to-r from-blue-500 to-red-500 hover:from-blue-600 hover:to-red-600 text-white border-0"
             onClick={() => handleOAuthSignIn('google')}
             disabled={loading}
           >
@@ -115,7 +126,7 @@ export default function AuthForm({ mode, onToggleMode }: AuthFormProps) {
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
               />
             </svg>
-            Continue with Google
+            {loading ? 'Signing in...' : 'Continue with Gmail'}
           </Button>
 
           <Button
@@ -167,6 +178,12 @@ export default function AuthForm({ mode, onToggleMode }: AuthFormProps) {
           </div>
         </div>
 
+        {message && (
+          <div className={`text-sm p-3 rounded-md ${message.includes('error') || message.includes('Failed') ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-green-50 text-green-600 border border-green-200'}`}>
+            {message}
+          </div>
+        )}
+
         <form onSubmit={handleAuth} className="space-y-4 mt-6">
           {mode === 'signup' && (
             <div className="space-y-2">
@@ -206,11 +223,6 @@ export default function AuthForm({ mode, onToggleMode }: AuthFormProps) {
             />
           </div>
 
-          {message && (
-            <div className={`text-sm ${message.includes('error') ? 'text-red-600' : 'text-green-600'}`}>
-              {message}
-            </div>
-          )}
 
           <Button type="submit" className="w-full" disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
