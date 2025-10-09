@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase-client'
 
 // Base API configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000')
 
 // Helper function to get auth headers
 async function getAuthHeaders() {
