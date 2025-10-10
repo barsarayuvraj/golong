@@ -12,6 +12,8 @@ import Link from 'next/link'
 import { Streak, UserStreak, LeaderboardEntry } from '@/types/database'
 import { CommentsSection } from './comments-section'
 import { SocialShare } from './social-share'
+import { StreakCalendar } from './streak-calendar'
+import { StreakInsights } from './streak-insights'
 import { useStreak, useJoinStreak, useCreateCheckin, useCheckins } from '@/hooks/useApi'
 import { toast } from 'sonner'
 
@@ -263,6 +265,20 @@ export default function StreakDetailPage() {
                 </Button>
               </CardContent>
             </Card>
+          )}
+
+          {/* Activity Calendar */}
+          <StreakCalendar 
+            checkins={checkinsData?.checkins || []} 
+            userStreakStartDate={userStreak?.joined_at ? userStreak.joined_at.split('T')[0] : undefined}
+          />
+
+          {/* Streak Insights */}
+          {userStreak && (
+            <StreakInsights 
+              checkins={checkinsData?.checkins || []} 
+              userStreak={userStreak}
+            />
           )}
 
           {/* Recent Activity */}

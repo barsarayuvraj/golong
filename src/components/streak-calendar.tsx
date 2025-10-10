@@ -1,550 +1,452 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState, useMemo } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { 
-  Calendar as CalendarIcon, 
-  ChevronLeft, 
-  ChevronRight, 
-  Flame, 
-  Target,
-  CheckCircle,
-  XCircle,
-  Clock,
-  TrendingUp
-} from 'lucide-react'
-import { createClient } from '@/lib/supabase-client'
-import { User as SupabaseUser } from '@supabase/supabase-js'
-import { motion } from 'framer-motion'
-import Calendar from 'react-calendar'
-import 'react-calendar/dist/Calendar.css'
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react'
+import { Checkin } from '@/types/database'
 
-interface Checkin {
-  id: string
-  streak_id: string
-  user_id: string
-  created_at: string
-  notes?: string
-}
-
-interface UserStreak {
-  id: string
-  streak_id: string
-  user_id: string
-  current_streak_count: number
-  longest_streak_count: number
-  last_checkin_date: string
-  streak: {
-    id: string
-    title: string
-    description: string
-    category: string
-    color?: string
-  }
-}
-
-interface CalendarData {
-  [date: string]: {
+interface StreakCalendarProps {
     checkins: Checkin[]
-    streaks: UserStreak[]
-    totalCheckins: number
-  }
+  userStreakStartDate?: string
+  className?: string
 }
 
-export function StreakCalendar() {
-  const [calendarData, setCalendarData] = useState<CalendarData>({})
-  const [userStreaks, setUserStreaks] = useState<UserStreak[]>([])
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
-  const [selectedStreak, setSelectedStreak] = useState<string>('all')
-  const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState<SupabaseUser | null>(null)
-  const [view, setView] = useState<'month' | 'week' | 'year'>('month')
+interface CalendarDay {
+  date: Date
+  hasCheckin: boolean
+  isToday: boolean
+  isFuture: boolean
+  isBeforeStreak: boolean
+}
 
-  const supabase = createClient()
+type CalendarView = 'week' | 'month' | 'year'
 
-  useEffect(() => {
-    fetchUser()
-  }, [])
+export function StreakCalendar({ checkins, userStreakStartDate, className }: StreakCalendarProps) {
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear())
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth())
+  const [currentWeek, setCurrentWeek] = useState(0)
+  const [view, setView] = useState<CalendarView>('month')
+  
+  // Create a set of check-in dates for quick lookup
+  const checkinDates = useMemo(() => {
+    return new Set(checkins.map(checkin => checkin.checkin_date))
+  }, [checkins])
 
-  useEffect(() => {
-    if (user) {
-      fetchCalendarData()
-    }
-  }, [user, selectedStreak])
-
-  const fetchUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    setUser(user)
-  }
-
-  const fetchCalendarData = async () => {
-    if (!user) return
-
-    try {
-      setLoading(true)
-
-      // Get user's streaks
-      const { data: streaks, error: streaksError } = await supabase
-        .from('user_streaks')
-        .select(`
-          *,
-          streak:streaks (
-            id,
-            title,
-            description,
-            category
-          )
-        `)
-        .eq('user_id', user.id)
-
-      if (streaksError) throw streaksError
-
-      setUserStreaks(streaks || [])
-
-      // Get check-ins for the last 6 months
-      const sixMonthsAgo = new Date()
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
-
-      // First get user streak IDs
-      const userStreakIds = streaks?.map(us => us.id) || []
-      
-      const { data: checkins, error: checkinsError } = await supabase
-        .from('checkins')
-        .select('*')
-        .in('user_streak_id', userStreakIds)
-        .gte('created_at', sixMonthsAgo.toISOString())
-
-      if (checkinsError) throw checkinsError
-
-      // Process calendar data
-      const processedData: CalendarData = {}
-      
-      checkins?.forEach(checkin => {
-        const date = new Date(checkin.checkin_date).toISOString().split('T')[0]
-        if (!processedData[date]) {
-          processedData[date] = {
-            checkins: [],
-            streaks: [],
-            totalCheckins: 0
-          }
-        }
-        processedData[date].checkins.push(checkin)
-        processedData[date].totalCheckins++
-      })
-
-      // Add streak information for each date
-      streaks?.forEach(userStreak => {
-        if (selectedStreak === 'all' || userStreak.streak_id === selectedStreak) {
-          // Add streak info to relevant dates
-          Object.keys(processedData).forEach(date => {
-            if (processedData[date].checkins.some(c => c.user_streak_id === userStreak.id)) {
-              if (!processedData[date].streaks.find(s => s.id === userStreak.id)) {
-                processedData[date].streaks.push(userStreak)
-              }
-            }
-          })
-        }
-      })
-
-      setCalendarData(processedData)
-    } catch (error) {
-      console.error('Error fetching calendar data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const getTileContent = ({ date, view }: { date: Date; view: string }) => {
-    const dateStr = date.toISOString().split('T')[0]
-    const dayData = calendarData[dateStr]
-
-    if (!dayData || dayData.totalCheckins === 0) {
-      return null
-    }
-
-    return (
-      <div className="flex flex-col items-center justify-center h-full">
-        <div className="flex items-center gap-1">
-          {dayData.streaks.slice(0, 3).map((streak, index) => (
-            <div
-              key={streak.id}
-              className="w-2 h-2 rounded-full bg-green-500"
-              style={{ backgroundColor: getStreakColor(streak.streak.category) }}
-            />
-          ))}
-          {dayData.streaks.length > 3 && (
-            <div className="w-2 h-2 rounded-full bg-gray-400" />
-          )}
-        </div>
-        <div className="text-xs font-medium text-green-600">
-          {dayData.totalCheckins}
-        </div>
-      </div>
-    )
-  }
-
-  const getStreakColor = (category: string) => {
-    const colors: { [key: string]: string } = {
-      'Health & Fitness': '#10b981',
-      'Learning': '#3b82f6',
-      'Productivity': '#f59e0b',
-      'Lifestyle': '#8b5cf6',
-      'Other': '#6b7280'
-    }
-    return colors[category] || colors['Other']
-  }
-
-  const getSelectedDateData = () => {
-    const dateStr = selectedDate.toISOString().split('T')[0]
-    return calendarData[dateStr] || { checkins: [], streaks: [], totalCheckins: 0 }
-  }
-
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
-  }
-
-  const handleCheckIn = async (streakId: string, date?: Date) => {
-    if (!user) return
-
-    try {
-      const checkinDate = date || new Date()
-      const response = await fetch('/api/checkins', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          streak_id: streakId,
-          checkin_date: checkinDate.toISOString().split('T')[0]
-        })
-      })
-
-      const result = await response.json()
-
-      if (response.ok) {
-        // Refresh calendar data
-        await fetchCalendarData()
-        
-        // Show success message
-        console.log('Check-in successful:', result.message)
-      } else {
-        console.error('Check-in failed:', result.error)
-      }
-    } catch (error) {
-      console.error('Error checking in:', error)
-    }
-  }
-
-  const handleRemoveCheckIn = async (checkinId: string) => {
-    if (!user) return
-
-    try {
-      const response = await fetch(`/api/checkins?checkin_id=${checkinId}`, {
-        method: 'DELETE'
-      })
-
-      const result = await response.json()
-
-      if (response.ok) {
-        // Refresh calendar data
-        await fetchCalendarData()
-        
-        console.log('Check-in removed:', result.message)
-      } else {
-        console.error('Remove check-in failed:', result.error)
-      }
-    } catch (error) {
-      console.error('Error removing check-in:', error)
-    }
-  }
-
-  const getStreakStats = () => {
-    const totalDays = Object.keys(calendarData).length
-    const totalCheckins = Object.values(calendarData).reduce((sum, day) => sum + day.totalCheckins, 0)
-    const currentStreak = calculateCurrentStreak()
-    const longestStreak = calculateLongestStreak()
-
-    return {
-      totalDays,
-      totalCheckins,
-      currentStreak,
-      longestStreak,
-      averagePerDay: totalDays > 0 ? (totalCheckins / totalDays).toFixed(1) : '0'
-    }
-  }
-
-  const calculateCurrentStreak = () => {
+  // Generate calendar data based on current view
+  const calendarData = useMemo(() => {
     const today = new Date()
-    let streak = 0
+    const streakStart = userStreakStartDate ? new Date(userStreakStartDate) : null
+    const days: CalendarDay[] = []
     
-    for (let i = 0; i < 365; i++) {
-      const date = new Date(today)
-      date.setDate(date.getDate() - i)
-      const dateStr = date.toISOString().split('T')[0]
+    if (view === 'year') {
+      // Year view - show entire year
+      const yearStart = new Date(currentYear, 0, 1)
+      const yearEnd = new Date(currentYear, 11, 31)
       
-      if (calendarData[dateStr] && calendarData[dateStr].totalCheckins > 0) {
-        streak++
-      } else {
-        break
+      for (let date = new Date(yearStart); date <= yearEnd; date.setDate(date.getDate() + 1)) {
+        // Use local date string to avoid timezone issues
+        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+        const isToday = dateStr === todayStr
+        const isFuture = date > today
+        const isBeforeStreak = streakStart ? dateStr < streakStart.toISOString().split('T')[0] : false
+        
+        days.push({
+          date: new Date(date),
+          hasCheckin: checkinDates.has(dateStr),
+          isToday,
+          isFuture,
+          isBeforeStreak
+        })
+      }
+    } else if (view === 'week') {
+      // Week view - show current week
+      const startOfWeek = new Date(today)
+      startOfWeek.setDate(today.getDate() - today.getDay())
+      
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(startOfWeek)
+        date.setDate(startOfWeek.getDate() + i)
+        // Use local date string to avoid timezone issues
+        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+        const isToday = dateStr === todayStr
+        const isFuture = date > today
+        const isBeforeStreak = streakStart ? dateStr < streakStart.toISOString().split('T')[0] : false
+        
+        days.push({
+          date: new Date(date),
+          hasCheckin: checkinDates.has(dateStr),
+          isToday,
+          isFuture,
+          isBeforeStreak
+        })
       }
     }
+    // Note: Month view data is generated separately in renderCalendarGrid for proper alignment
     
-    return streak
-  }
+    return days
+  }, [currentYear, currentMonth, view, checkinDates, userStreakStartDate])
 
-  const calculateLongestStreak = () => {
-    const dates = Object.keys(calendarData).sort()
-    let longestStreak = 0
+  // Calculate statistics based on current view
+  const stats = useMemo(() => {
+    let totalDays = 0
+    let activeDays = 0
+    let totalPossibleDays = 0
+    let maxStreak = 0
     let currentStreak = 0
     
-    dates.forEach(date => {
-      if (calendarData[date].totalCheckins > 0) {
-        currentStreak++
-        longestStreak = Math.max(longestStreak, currentStreak)
-      } else {
-        currentStreak = 0
-      }
-    })
     
-    return longestStreak
+    if (view === 'month') {
+      // For month view, calculate based on the current month
+      const monthStart = new Date(currentYear, currentMonth, 1)
+      const monthEnd = new Date(currentYear, currentMonth + 1, 0)
+      const today = new Date()
+      const streakStart = userStreakStartDate ? new Date(userStreakStartDate) : null
+      
+      for (let i = 1; i <= monthEnd.getDate(); i++) {
+        const date = new Date(currentYear, currentMonth, i)
+        // Use local date string to avoid timezone issues - consistent with calendarData
+        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+        const isToday = dateStr === todayStr
+        const isFuture = date > today
+        const isBeforeStreak = streakStart ? dateStr < streakStart.toISOString().split('T')[0] : false
+        const hasCheckin = checkinDates.has(dateStr)
+        
+        
+        totalDays++
+        if (!isFuture && !isBeforeStreak) {
+          totalPossibleDays++
+          if (hasCheckin) {
+            activeDays++
+            currentStreak++
+            maxStreak = Math.max(maxStreak, currentStreak)
+      } else {
+            currentStreak = 0
+          }
+        }
+      }
+    } else {
+      // For week and year views, use calendarData
+      totalDays = calendarData.length
+      activeDays = calendarData.filter(day => day.hasCheckin && !day.isFuture && !day.isBeforeStreak).length
+      totalPossibleDays = calendarData.filter(day => !day.isFuture && !day.isBeforeStreak).length
+      
+      // Calculate max streak
+      for (const day of calendarData) {
+        if (day.isFuture || day.isBeforeStreak) continue
+        
+        if (day.hasCheckin) {
+          currentStreak++
+          maxStreak = Math.max(maxStreak, currentStreak)
+      } else {
+          currentStreak = 0
+        }
+      }
+    }
+
+    const result = {
+      totalDays,
+      activeDays,
+      totalPossibleDays,
+      maxStreak,
+      currentStreak,
+      activityPercentage: totalPossibleDays > 0 ? Math.round((activeDays / totalPossibleDays) * 100) : 0
+    }
+    
+    return result
+  }, [calendarData, view, currentYear, currentMonth, checkinDates, userStreakStartDate])
+
+  // Navigation functions
+  const navigatePrevious = () => {
+    if (view === 'year') {
+      setCurrentYear(currentYear - 1)
+    } else if (view === 'month') {
+      if (currentMonth === 0) {
+        setCurrentMonth(11)
+        setCurrentYear(currentYear - 1)
+      } else {
+        setCurrentMonth(currentMonth - 1)
+      }
+    }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-      </div>
-    )
+  const navigateNext = () => {
+    if (view === 'year') {
+      setCurrentYear(currentYear + 1)
+    } else if (view === 'month') {
+      if (currentMonth === 11) {
+        setCurrentMonth(0)
+        setCurrentYear(currentYear + 1)
+      } else {
+        setCurrentMonth(currentMonth + 1)
+      }
+    }
   }
 
-  const stats = getStreakStats()
-  const selectedDateData = getSelectedDateData()
+  const getCurrentPeriod = () => {
+    if (view === 'year') {
+      return currentYear.toString()
+    } else if (view === 'month') {
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December']
+      return `${monthNames[currentMonth]} ${currentYear}`
+    } else {
+      return 'This Week'
+    }
+  }
 
+  const getDayColor = (day: CalendarDay) => {
+    if (day.isBeforeStreak) return 'bg-gray-100 text-gray-400'
+    if (day.isFuture) return 'bg-gray-50 text-gray-400'
+    if (day.isToday && day.hasCheckin) return 'bg-green-500 text-white border-2 border-blue-400'
+    if (day.isToday) return 'bg-blue-200 text-blue-800 border-2 border-blue-400'
+    if (day.hasCheckin) return 'bg-green-500 text-white'
+    return 'bg-gray-200 text-gray-700'
+  }
+
+
+  const renderCalendarGrid = () => {
+    if (view === 'week') {
+      // Week view - horizontal layout
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold">Streak Calendar</h2>
-          <p className="text-gray-600">Track your daily progress and build consistency</p>
-        </div>
         <div className="flex items-center gap-2">
-          <Select value={view} onValueChange={(value: 'month' | 'week' | 'year') => setView(value)}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="month">Month</SelectItem>
-              <SelectItem value="week">Week</SelectItem>
-              <SelectItem value="year">Year</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Current Streak</CardTitle>
-              <Flame className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.currentStreak}</div>
-              <p className="text-xs text-muted-foreground">days</p>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Longest Streak</CardTitle>
-              <Target className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.longestStreak}</div>
-              <p className="text-xs text-muted-foreground">days</p>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Check-ins</CardTitle>
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalCheckins}</div>
-              <p className="text-xs text-muted-foreground">all time</p>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-        >
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg per Day</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.averagePerDay}</div>
-              <p className="text-xs text-muted-foreground">check-ins</p>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Calendar */}
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Calendar View</CardTitle>
-                <div className="flex items-center gap-2">
-                  <Select value={selectedStreak} onValueChange={setSelectedStreak}>
-                    <SelectTrigger className="w-48">
-                      <SelectValue placeholder="Filter by streak" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Streaks</SelectItem>
-                      {userStreaks.map(streak => (
-                        <SelectItem key={streak.id} value={streak.streak_id}>
-                          {streak.streak.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((dayName, index) => (
+            <div key={index} className="flex flex-col items-center gap-1 min-w-[40px]">
+              <div className="text-xs text-gray-500">{dayName}</div>
+              <div
+                className={`
+                  w-8 h-8 rounded-md cursor-pointer transition-colors flex items-center justify-center text-xs font-medium
+                  ${getDayColor(calendarData[index] || {})}
+                  hover:scale-110
+                `}
+                title={calendarData[index] ? `
+                  ${calendarData[index].date.toLocaleDateString()}
+                  ${calendarData[index].hasCheckin ? '✓ Checked in' : '✗ No check-in'}
+                  ${calendarData[index].isToday ? ' (Today)' : ''}
+                ` : ''}
+              >
+                {calendarData[index]?.date.getDate()}
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="calendar-container">
-                <Calendar
-                  onChange={setSelectedDate}
-                  value={selectedDate}
-                  tileContent={getTileContent}
-                  className="w-full"
-                />
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          ))}
         </div>
+      )
+    } else if (view === 'month') {
+      // Month view - FIXED horizontal calendar grid
+      const monthStart = new Date(currentYear, currentMonth, 1)
+      const monthEnd = new Date(currentYear, currentMonth + 1, 0)
+      const daysInMonth = monthEnd.getDate()
+      const firstDayOfMonth = monthStart.getDay() // 0 = Sunday, 1 = Monday, etc.
+      
+      // Create array with null values for empty cells at the start of the month
+      const days: (CalendarDay | null)[] = []
+      
+      // Add empty cells for days before the first day of the month
+      for (let i = 0; i < firstDayOfMonth; i++) {
+        days.push(null)
+      }
+      
+      // Add all days of the month
+      for (let i = 1; i <= daysInMonth; i++) {
+        const date = new Date(currentYear, currentMonth, i)
+        // Use local date string to avoid timezone issues
+        const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`
+        const today = new Date()
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+        const isToday = dateStr === todayStr
+        const isFuture = date > today
+        const streakStart = userStreakStartDate ? new Date(userStreakStartDate) : null
+        const isBeforeStreak = streakStart ? dateStr < streakStart.toISOString().split('T')[0] : false
+        
+        const hasCheckin = checkinDates.has(dateStr)
+        const dayObj = {
+          date,
+          hasCheckin,
+          isToday,
+          isFuture,
+          isBeforeStreak
+        }
+        days.push(dayObj)
+        
+      }
+      
+      return (
+        <div className="w-full">
+          {/* Day headers - HORIZONTAL alignment */}
+          <div className="grid grid-cols-7 gap-1 mb-2">
+            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
+              <div key={index} className="text-xs text-gray-500 text-center p-1 font-medium">
+                {day}
+              </div>
+            ))}
+          </div>
+          
+          {/* Calendar grid - DIRECT 7-column layout without weeks array */}
+          <div className="grid grid-cols-7 gap-1">
+            {days.map((day, index) => {
+              const dayColor = day ? getDayColor(day) : 'bg-transparent'
+              return (
+              <div
+                key={index}
+                className={`
+                  aspect-square rounded-sm cursor-pointer transition-all duration-200 flex items-center justify-center text-xs font-medium
+                  ${dayColor}
+                  ${day ? 'hover:scale-110' : ''}
+                  min-h-[32px]
+                `}
+                title={day ? `
+                  ${day.date.toLocaleDateString()}
+                  ${day.hasCheckin ? '✓ Checked in' : '✗ No check-in'}
+                  ${day.isToday ? ' (Today)' : ''}
+                ` : ''}
+              >
+                {day ? day.date.getDate() : ''}
+              </div>
+              )
+            })}
+          </div>
+        </div>
+      )
+    } else {
+      // Year view - horizontal layout with months
+      const monthsData: { [key: number]: CalendarDay[] } = {}
+      calendarData.forEach(day => {
+        const month = day.date.getMonth()
+        if (!monthsData[month]) monthsData[month] = []
+        monthsData[month].push(day)
+      })
 
-        {/* Selected Date Details */}
-        <div>
-          <Card>
-            <CardHeader>
-              <CardTitle>Selected Date</CardTitle>
-              <CardDescription>{formatDate(selectedDate)}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {selectedDateData.totalCheckins > 0 ? (
-                <div className="space-y-4">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-green-600">
-                      {selectedDateData.totalCheckins}
-                    </div>
-                    <div className="text-sm text-gray-600">Check-ins completed</div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h4 className="font-medium">Streaks:</h4>
-                    {selectedDateData.streaks.map(streak => (
-                      <div key={streak.id} className="flex items-center gap-2">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: getStreakColor(streak.streak.category) }}
-                        />
-                        <span className="text-sm">{streak.streak.title}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {selectedDateData.checkins.length > 0 && (
-                    <div className="space-y-2">
-                      <h4 className="font-medium">Check-in Details:</h4>
-                      {selectedDateData.checkins.map(checkin => (
-                        <div key={checkin.id} className="text-sm text-gray-600">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <CheckCircle className="h-4 w-4 text-green-500" />
-                              <span>
-                                {new Date(checkin.created_at).toLocaleTimeString()}
-                              </span>
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-                              onClick={() => handleRemoveCheckIn(checkin.id)}
-                            >
-                              <XCircle className="h-4 w-4" />
-                            </Button>
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+      
+      return (
+        <div className="grid grid-cols-12 gap-2">
+          {monthNames.map((monthName, monthIndex) => (
+            <div key={monthIndex} className="flex flex-col items-center gap-1">
+              <div className="text-xs text-gray-500 font-medium">{monthName}</div>
+              <div className="flex flex-wrap gap-0.5 max-w-[80px]">
+                {monthsData[monthIndex]?.map((day, dayIndex) => (
+                  <div
+                    key={dayIndex}
+                    className={`
+                      w-3 h-3 rounded-sm cursor-pointer transition-all duration-200
+                      ${getDayColor(day)}
+                      hover:scale-125 hover:shadow-sm
+                      ${day.hasCheckin ? 'ring-1 ring-green-300' : ''}
+                    `}
+                    title={`
+                      ${day.date.toLocaleDateString()}
+                      ${day.hasCheckin ? '✓ Checked in' : '✗ No check-in'}
+                      ${day.isToday ? ' (Today)' : ''}
+                    `}
+                  />
+                ))}
                           </div>
-                          {checkin.notes && (
-                            <p className="ml-6 text-xs italic">"{checkin.notes}"</p>
-                          )}
                         </div>
                       ))}
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <XCircle className="h-12 w-12 mx-auto mb-3 text-gray-400" />
-                  <p className="text-gray-500 mb-4">No check-ins on this date</p>
-                  
-                  {/* Quick Check-in Buttons */}
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm">Quick Check-in:</h4>
-                    {userStreaks.map(streak => (
+      )
+    }
+  }
+
+  return (
+    <Card className={className}>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between mb-3">
+          <CardTitle className="flex items-center text-lg">
+            <CalendarIcon className="mr-2 h-5 w-5" />
+            Activity Calendar
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            {/* View Toggle */}
+            <div className="flex bg-gray-100 rounded-lg p-1">
+              {(['week', 'month', 'year'] as CalendarView[]).map((viewOption) => (
                       <Button
-                        key={streak.id}
+                  key={viewOption}
+                  variant={view === viewOption ? "default" : "ghost"}
                         size="sm"
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => handleCheckIn(streak.streak_id, selectedDate)}
+                  onClick={() => setView(viewOption)}
+                  className="h-7 px-3 text-xs"
                       >
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        {streak.streak.title}
+                  {viewOption.charAt(0).toUpperCase() + viewOption.slice(1)}
                       </Button>
                     ))}
                   </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
         </div>
+        
+        {/* Navigation and Statistics */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={navigatePrevious}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-medium min-w-[120px] text-center">
+              {getCurrentPeriod()}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={navigateNext}
+              disabled={view === 'year' && currentYear >= new Date().getFullYear()}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          {/* Statistics */}
+          <div className="flex items-center gap-3 text-sm">
+            <div className="text-center">
+              <div className="font-bold text-green-600">{stats.activeDays}</div>
+              <div className="text-xs text-gray-600">Active</div>
+            </div>
+            <div className="text-center">
+              <div className="font-bold text-blue-600">{stats.maxStreak}</div>
+              <div className="text-xs text-gray-600">Max</div>
+            </div>
+            <div className="text-center">
+              <div className="font-bold text-orange-600">{stats.currentStreak}</div>
+              <div className="text-xs text-gray-600">Current</div>
+            </div>
+            <div className="text-center">
+              <div className="font-bold text-purple-600">{stats.activityPercentage}%</div>
+              <div className="text-xs text-gray-600">Rate</div>
+            </div>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {/* Calendar Grid */}
+        <div className="mb-3">
+          {renderCalendarGrid()}
+        </div>
+
+        {/* Legend */}
+        <div className="flex items-center justify-center gap-4 text-xs text-gray-600">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-gray-200 rounded-sm"></div>
+            <span>No check-in</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-green-500 rounded-sm"></div>
+            <span>Checked in</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-blue-200 border-2 border-blue-400 rounded-sm"></div>
+            <span>Today</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-green-500 border-2 border-blue-400 rounded-sm"></div>
+            <span>Today + Check-in</span>
       </div>
     </div>
+      </CardContent>
+    </Card>
   )
 }
