@@ -14,12 +14,22 @@ export default function AuthPage() {
 
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
-      setLoading(false)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+      } catch (error) {
+        console.error('Error getting user:', error)
+      } finally {
+        setLoading(false)
+      }
     }
 
     getUser()
+
+    // Fallback timeout to ensure auth form renders
+    const timeout = setTimeout(() => {
+      setLoading(false)
+    }, 3000)
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event: any, session: any) => {
@@ -30,13 +40,19 @@ export default function AuthPage() {
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      clearTimeout(timeout)
+      subscription.unsubscribe()
+    }
   }, [supabase.auth])
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="w-full max-w-md">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="text-center mt-4 text-gray-600">Loading...</p>
+        </div>
       </div>
     )
   }
