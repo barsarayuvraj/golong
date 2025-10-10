@@ -104,7 +104,7 @@ export default function AuthForm({ mode, onToggleMode }: AuthFormProps) {
         <div className="space-y-3 mb-6">
           <Button
             type="button"
-            className="w-full bg-gradient-to-r from-blue-500 to-red-500 hover:from-blue-600 hover:to-red-600 text-white border-0"
+            className="w-full btn-google"
             onClick={() => handleOAuthSignIn('google')}
             disabled={loading}
           >
@@ -131,7 +131,7 @@ export default function AuthForm({ mode, onToggleMode }: AuthFormProps) {
 
           <Button
             type="button"
-            className="w-full bg-black hover:bg-gray-800 text-white border-0"
+            className="w-full btn-apple"
             onClick={() => handleOAuthSignIn('apple')}
             disabled={loading}
           >
@@ -143,7 +143,7 @@ export default function AuthForm({ mode, onToggleMode }: AuthFormProps) {
 
           <Button
             type="button"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white border-0"
+            className="w-full btn-facebook"
             onClick={() => handleOAuthSignIn('facebook')}
             disabled={loading}
           >
