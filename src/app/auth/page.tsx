@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import AuthForm from '@/components/auth-form'
+import { getBuildInfo } from '@/lib/build-info'
 
 export default function AuthPage() {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
@@ -68,10 +69,14 @@ export default function AuthPage() {
     )
   }
 
+  const buildInfo = getBuildInfo()
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="w-full max-w-md">
         <AuthForm mode={mode} onToggleMode={() => setMode(mode === 'signin' ? 'signup' : 'signin')} />
+        {/* Hidden element to help with cache busting */}
+        <div style={{ display: 'none' }} data-build={buildInfo.version} data-timestamp={buildInfo.timestamp} />
       </div>
     </div>
   )
