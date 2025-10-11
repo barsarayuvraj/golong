@@ -1,18 +1,18 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { motion } from 'framer-motion'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Flame, Users, Calendar, Search, Filter, Loader2 } from 'lucide-react'
+import { Flame, Users, Calendar, Search, Filter, Loader2, Eye, UserPlus, User, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
-import { ReportDialog } from './report-dialog'
-import { QuickShareButtons } from './social-share'
-import { useInfinitePopularStreaks } from '@/hooks/useApi'
+import { useInfinitePopularStreaks, useJoinStreak } from '@/hooks/useApi'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 const STREAK_CATEGORIES = [
   'All',
@@ -34,6 +34,15 @@ const SORT_OPTIONS = [
   { value: 'title', label: 'Alphabetical' },
 ]
 
+const colorClasses = [
+  'bg-red-500',
+  'bg-green-500', 
+  'bg-blue-500',
+  'bg-orange-500',
+  'bg-purple-500',
+  'bg-pink-500'
+]
+
 interface PopularStreak {
   id: string
   title: string
@@ -52,17 +61,23 @@ interface PopularStreak {
   }
 }
 
-export default function ExploreStreaks() {
+interface ExploreStreaksProps {
+  currentUserId?: string
+}
+
+export default function ExploreStreaks({ currentUserId }: ExploreStreaksProps = {}) {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [sortBy, setSortBy] = useState('created_at')
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
   const [showClosestMatches, setShowClosestMatches] = useState(false)
+  const [joiningStreaks, setJoiningStreaks] = useState<Set<string>>(new Set())
   
   const router = useRouter()
   const observerRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const isAuthenticated = !!currentUserId
 
   // Debounce search term
   useEffect(() => {
@@ -86,8 +101,12 @@ export default function ExploreStreaks() {
     searchLoading,
     error, 
     hasMore, 
-    loadMore 
+    loadMore,
+    refetch
   } = useInfinitePopularStreaks(hookParams)
+
+  // Use the join streak hook
+  const { joinStreak } = useJoinStreak()
 
   // Intersection Observer for infinite scrolling
   useEffect(() => {
@@ -107,14 +126,39 @@ export default function ExploreStreaks() {
     return () => observer.disconnect()
   }, [hasMore, loading, loadMore])
 
+  // Handle view streak functionality
+  const handleViewStreak = (streakId: string) => {
+    router.push(`/streaks/${streakId}`)
+  }
+
   // Handle join streak functionality
   const handleJoinStreak = useCallback(async (streakId: string) => {
+    if (!isAuthenticated) {
+      router.push('/auth')
+      return
+    }
+    
+    // Add this streak to the joining set
+    setJoiningStreaks(prev => new Set(prev).add(streakId))
+    
     try {
-      router.push(`/streaks/${streakId}`)
+      await joinStreak(streakId)
+      toast.success('Successfully joined the streak!')
+      
+      // Refresh the data to reflect the new join status
+      await refetch()
     } catch (error) {
       console.error('Error joining streak:', error)
+      toast.error('Failed to join streak. Please try again.')
+    } finally {
+      // Remove this streak from the joining set
+      setJoiningStreaks(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(streakId)
+        return newSet
+      })
     }
-  }, [router])
+  }, [router, isAuthenticated, joinStreak, refetch])
 
   // Handle closest matches when no results found
   useEffect(() => {
@@ -228,82 +272,112 @@ export default function ExploreStreaks() {
 
       {/* Streaks Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {streaks.map((streak: PopularStreak) => (
-          <Card key={streak.id} className="hover:shadow-lg transition-shadow h-full flex flex-col">
+        {streaks.map((streak: PopularStreak, index) => {
+          const isOwner = currentUserId === streak.profiles.id
+          const colorClass = colorClasses[index % colorClasses.length]
+          
+          return (
+            <motion.div
+              key={streak.id}
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: index * 0.1 }}
+              viewport={{ once: true }}
+              whileHover={{ y: -8, scale: 1.02 }}
+            >
+              <Card 
+                className="h-full hover:shadow-2xl transition-all duration-300 border-0 shadow-lg overflow-hidden group cursor-pointer"
+                onClick={() => handleViewStreak(streak.id)}
+              >
+                <div className={`h-2 ${colorClass} w-full`} />
             <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <CardTitle className="text-lg mb-1">{streak.title}</CardTitle>
-                  <CardDescription className="line-clamp-2">
-                    {streak.description}
+                  <CardTitle className="text-lg font-bold group-hover:text-blue-600 transition-colors cursor-pointer">
+                    {streak.title}
+                  </CardTitle>
+                  <CardDescription className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="secondary" className="bg-gray-100">
+                      {streak.category}
+                    </Badge>
+                    <span className="text-sm text-gray-500 flex items-center gap-1">
+                      <Users className="h-3 w-3" />
+                      {streak.participant_count} participants
+                    </span>
                   </CardDescription>
-                </div>
-                <div className="flex items-center gap-2 ml-2">
-                  <Badge variant="secondary">
-                    {streak.category}
-                  </Badge>
-                  <ReportDialog streakId={streak.id} streakTitle={streak.title} />
-                </div>
-              </div>
             </CardHeader>
-            
-            <CardContent className="flex-1 flex flex-col justify-end">
+            <CardContent>
               <div className="space-y-3">
-                {/* Tags */}
-                <div className="flex flex-wrap gap-1">
-                  {streak.tags.slice(0, 3).map((tag) => (
-                    <Badge key={tag} variant="outline" className="text-xs">
-                      #{tag}
-                    </Badge>
-                  ))}
-                  {streak.tags.length > 3 && (
-                    <Badge variant="outline" className="text-xs">
-                      +{streak.tags.length - 3} more
-                    </Badge>
-                  )}
+                    <p className="text-sm text-gray-600 line-clamp-2">
+                      {streak.description || 'Join others in this popular streak!'}
+                    </p>
+                    
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <User className="h-3 w-3" />
+                      <span>by {streak.profiles.display_name || streak.profiles.username}</span>
                 </div>
 
-                {/* Stats */}
-                <div className="flex items-center gap-4 text-sm text-gray-600">
-                  <div className="flex items-center gap-1">
-                    <Users className="h-4 w-4" />
-                    <span>{streak.participant_count} participants</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Calendar className="h-4 w-4" />
-                    <span>{new Date(streak.created_at).toLocaleDateString()}</span>
-                  </div>
-                </div>
-
-                {/* Actions */}
+                    <motion.div className="mt-4 space-y-2">
+                      {isOwner ? (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleViewStreak(streak.id)
+                          }}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          View Streak
+                        </Button>
+                      ) : streak.hasJoined ? (
+                        <Button 
+                          variant="default" 
+                          size="sm" 
+                          className="w-full"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleViewStreak(streak.id)
+                          }}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          View My Progress
+                        </Button>
+                      ) : (
                 <div className="flex gap-2">
-                  <Link href={`/streaks/${streak.id}`} className="flex-1">
-                    <Button className="w-full">
-                      <Flame className="mr-2 h-4 w-4" />
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="flex-1"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleViewStreak(streak.id)
+                            }}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
                       View Details
                     </Button>
-                  </Link>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleJoinStreak(streak.id)
-                    }}
-                  >
-                    {streak.hasJoined ? 'View Progress' : 'Join'}
+                          <Button 
+                            variant="default" 
+                            size="sm" 
+                            className="flex-1"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleJoinStreak(streak.id)
+                            }}
+                            disabled={joiningStreaks.has(streak.id)}
+                          >
+                            <UserPlus className="h-4 w-4 mr-2" />
+                            {joiningStreaks.has(streak.id) ? 'Joining...' : (isAuthenticated ? 'Join' : 'Sign In')}
                   </Button>
                 </div>
-
-                {/* Social Share */}
-                <div className="flex items-center justify-between pt-2 border-t">
-                  <span className="text-xs text-gray-500">Share this streak:</span>
-                  <QuickShareButtons streak={streak} />
-                </div>
+                      )}
+                    </motion.div>
               </div>
             </CardContent>
           </Card>
-        ))}
+            </motion.div>
+          )
+        })}
       </div>
 
       {/* Infinite Scroll Loading */}
