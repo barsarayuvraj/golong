@@ -11,6 +11,7 @@ import { Flame, Users, Calendar, CheckCircle, Plus, Trophy, Target } from 'lucid
 import Link from 'next/link'
 import { Streak, UserStreak, LeaderboardEntry } from '@/types/database'
 import { CommentsSection } from './comments-section'
+import { NotesSection } from './notes-section'
 import { SocialShare } from './social-share'
 import { StreakCalendar } from './streak-calendar'
 import { StreakInsights } from './streak-insights'
@@ -155,7 +156,11 @@ export default function StreakDetailPage() {
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-gray-400" />
               <span className="text-sm text-gray-600">
-                {statsLoading ? '... participants' : `${stats?.total_participants || 0} participants`}
+                {streak?.is_public ? (
+                  statsLoading ? '... participants' : `${stats?.total_participants || 0} participants`
+                ) : (
+                  'Private'
+                )}
               </span>
             </div>
           </div>
@@ -278,55 +283,57 @@ export default function StreakDetailPage() {
 
         {/* Sidebar */}
         <div className="lg:col-span-1 space-y-6">
-          {/* Leaderboard */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Trophy className="mr-2 h-5 w-5" />
-                Leaderboard
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {leaderboard.map((entry, index) => (
-                  <div key={entry.user_id} className="flex items-center gap-3">
-                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-xs font-medium">
-                      {index + 1}
+          {/* Leaderboard - Only show for public streaks */}
+          {streak?.is_public && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Trophy className="mr-2 h-5 w-5" />
+                  Leaderboard
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {leaderboard.map((entry, index) => (
+                    <div key={entry.user_id} className="flex items-center gap-3">
+                      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-xs font-medium">
+                        {index + 1}
+                      </div>
+                      {entry.user_id.startsWith('placeholder_') ? (
+                        <>
+                          <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+                            <span className="text-xs text-gray-400">-</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-gray-400">-</div>
+                            <div className="text-xs text-gray-400">- days</div>
+                          </div>
+                          <Flame className="h-4 w-4 text-gray-300" />
+                        </>
+                      ) : (
+                        <>
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback className="text-xs">
+                              {entry.display_name?.charAt(0) || entry.username.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium truncate">
+                              {entry.display_name || entry.username}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {entry.current_streak_days} days
+                            </div>
+                          </div>
+                          <Flame className="h-4 w-4 text-orange-500" />
+                        </>
+                      )}
                     </div>
-                    {entry.user_id.startsWith('placeholder_') ? (
-                      <>
-                        <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
-                          <span className="text-xs text-gray-400">-</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-gray-400">-</div>
-                          <div className="text-xs text-gray-400">- days</div>
-                        </div>
-                        <Flame className="h-4 w-4 text-gray-300" />
-                      </>
-                    ) : (
-                      <>
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="text-xs">
-                            {entry.display_name?.charAt(0) || entry.username.charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">
-                            {entry.display_name || entry.username}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {entry.current_streak_days} days
-                          </div>
-                        </div>
-                        <Flame className="h-4 w-4 text-orange-500" />
-                      </>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Streak Stats */}
           <Card>
@@ -334,34 +341,71 @@ export default function StreakDetailPage() {
               <CardTitle>Streak Stats</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Total Participants</span>
-                <span className="font-medium">
-                  {statsLoading ? '...' : (stats?.total_participants || 0)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Average Streak</span>
-                <span className="font-medium">
-                  {statsLoading ? '...' : `${stats?.average_streak || 0} days`}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Longest Streak</span>
-                <span className="font-medium">
-                  {statsLoading ? '...' : `${stats?.longest_streak || 0} days`}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Created</span>
-                <span className="font-medium">
-                  {statsLoading ? '...' : (
-                    stats?.created_at ? new Date(stats.created_at).toLocaleDateString() : 
-                    streak?.created_at ? new Date(streak.created_at).toLocaleDateString() : 
-                    '-'
-                  )}
-                </span>
-              </div>
+              {streak?.is_public ? (
+                // Public streak stats
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Total Participants</span>
+                    <span className="font-medium">
+                      {statsLoading ? '...' : (stats?.total_participants || 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Average Streak</span>
+                    <span className="font-medium">
+                      {statsLoading ? '...' : `${stats?.average_streak || 0} days`}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Longest Streak</span>
+                    <span className="font-medium">
+                      {statsLoading ? '...' : `${stats?.longest_streak || 0} days`}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Created</span>
+                    <span className="font-medium">
+                      {statsLoading ? '...' : (
+                        stats?.created_at ? new Date(stats.created_at).toLocaleDateString() : 
+                        streak?.created_at ? new Date(streak.created_at).toLocaleDateString() : 
+                        '-'
+                      )}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                // Private streak stats (Progress Focus)
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Days Active</span>
+                    <span className="font-medium">
+                      {checkinsLoading ? '...' : (checkinsData?.checkins?.length || 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Consistency Rate</span>
+                    <span className="font-medium">
+                      {checkinsLoading ? '...' : (
+                        streak?.created_at ? 
+                          `${Math.round(((checkinsData?.checkins?.length || 0) / Math.max(1, Math.ceil((new Date().getTime() - new Date(streak.created_at).getTime()) / (1000 * 60 * 60 * 24)))) * 100)}%` :
+                          '0%'
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Current Streak</span>
+                    <span className="font-medium">
+                      {userStreak ? `${userStreak.current_streak_days} days` : '0 days'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Best Streak</span>
+                    <span className="font-medium">
+                      {userStreak ? `${userStreak.longest_streak_days} days` : '0 days'}
+                    </span>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -408,12 +452,19 @@ export default function StreakDetailPage() {
           </Card>
         </div>
 
-        {/* Comments Section */}
+        {/* Comments/Notes Section */}
         <div className="lg:col-span-2">
-          <CommentsSection 
-            streakId={streakId} 
-            onCommentPosted={refetchRecentActivity}
-          />
+          {streak?.is_public ? (
+            <CommentsSection 
+              streakId={streakId} 
+              onCommentPosted={refetchRecentActivity}
+            />
+          ) : (
+            <NotesSection 
+              streakId={streakId} 
+              onNotePosted={refetchRecentActivity}
+            />
+          )}
         </div>
       </div>
     </div>

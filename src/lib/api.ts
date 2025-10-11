@@ -245,6 +245,34 @@ export class ApiService {
     return apiRequest(`/api/streaks/${streakId}/recent-activity`)
   }
 
+  // Notes API
+  static async getNotes(streakId: string) {
+    return apiRequest(`/api/notes?streak_id=${streakId}`)
+  }
+
+  static async createNote(data: {
+    streak_id: string
+    content: string
+  }) {
+    return apiRequest('/api/notes', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  static async updateNote(noteId: string, data: { content: string }) {
+    return apiRequest(`/api/notes?id=${noteId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  static async deleteNote(noteId: string) {
+    return apiRequest(`/api/notes?id=${noteId}`, {
+      method: 'DELETE',
+    })
+  }
+
   // Notifications API
   static async getNotifications(params?: {
     limit?: number

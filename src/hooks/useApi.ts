@@ -278,6 +278,79 @@ export function useRecentActivity(streakId: string) {
   )
 }
 
+export function useNotes(streakId: string) {
+  return useApiCall(
+    () => ApiService.getNotes(streakId),
+    [streakId]
+  )
+}
+
+export function useCreateNote() {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const createNote = useCallback(async (data: {
+    streak_id: string
+    content: string
+  }) => {
+    try {
+      setLoading(true)
+      setError(null)
+      const result = await ApiService.createNote(data)
+      return result
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create note')
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  return { createNote, loading, error }
+}
+
+export function useUpdateNote() {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const updateNote = useCallback(async (noteId: string, data: { content: string }) => {
+    try {
+      setLoading(true)
+      setError(null)
+      const result = await ApiService.updateNote(noteId, data)
+      return result
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update note')
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  return { updateNote, loading, error }
+}
+
+export function useDeleteNote() {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const deleteNote = useCallback(async (noteId: string) => {
+    try {
+      setLoading(true)
+      setError(null)
+      const result = await ApiService.deleteNote(noteId)
+      return result
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete note')
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  return { deleteNote, loading, error }
+}
+
 export function useDeleteComment() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

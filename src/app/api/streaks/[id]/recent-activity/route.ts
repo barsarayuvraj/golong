@@ -149,6 +149,44 @@ export async function GET(
       })
     }
 
+    // 4. Recent notes (last 10) - only for private streaks
+    if (!streak.is_public) {
+      const { data: recentNotes } = await supabase
+        .from('notes')
+        .select(`
+          id,
+          created_at,
+          content,
+          user_id
+        `)
+        .eq('streak_id', streakId)
+        .order('created_at', { ascending: false })
+        .limit(10)
+
+      if (recentNotes) {
+        // Get user profiles for the note creators
+        const userIds = recentNotes.map(note => note.user_id)
+        const { data: noteUsers } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, avatar_url')
+          .in('id', userIds)
+
+        recentNotes.forEach(note => {
+          const user = noteUsers?.find(u => u.id === note.user_id)
+          if (user) {
+            activities.push({
+              id: `note_${note.id}`,
+              type: 'note',
+              user: user,
+              timestamp: note.created_at,
+              action: 'added a note',
+              content: note.content.substring(0, 50) + (note.content.length > 50 ? '...' : '')
+            })
+          }
+        })
+      }
+    }
+
     // Sort all activities by timestamp (most recent first) and take top 10
     activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
     const recentActivities = activities.slice(0, 10)
