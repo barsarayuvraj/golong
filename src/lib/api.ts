@@ -241,6 +241,10 @@ export class ApiService {
     })
   }
 
+  static async getRecentActivity(streakId: string) {
+    return apiRequest(`/api/streaks/${streakId}/recent-activity`)
+  }
+
   // Notifications API
   static async getNotifications(params?: {
     limit?: number

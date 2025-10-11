@@ -271,6 +271,13 @@ export function useUpdateComment() {
   return { updateComment, loading, error }
 }
 
+export function useRecentActivity(streakId: string) {
+  return useApiCall(
+    () => ApiService.getRecentActivity(streakId),
+    [streakId]
+  )
+}
+
 export function useDeleteComment() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

@@ -14,7 +14,7 @@ import { CommentsSection } from './comments-section'
 import { SocialShare } from './social-share'
 import { StreakCalendar } from './streak-calendar'
 import { StreakInsights } from './streak-insights'
-import { useStreak, useJoinStreak, useCreateCheckin, useCheckins, useLeaderboard, useStreakStats } from '@/hooks/useApi'
+import { useStreak, useJoinStreak, useCreateCheckin, useCheckins, useLeaderboard, useStreakStats, useRecentActivity } from '@/hooks/useApi'
 import { toast } from 'sonner'
 
 export default function StreakDetailPage() {
@@ -28,6 +28,7 @@ export default function StreakDetailPage() {
   const { createCheckin, loading: checkingIn } = useCreateCheckin()
   const { data: leaderboardData, loading: leaderboardLoading } = useLeaderboard(streakId)
   const { data: statsData, loading: statsLoading } = useStreakStats(streakId)
+  const { data: recentActivityData, loading: recentActivityLoading, refetch: refetchRecentActivity } = useRecentActivity(streakId)
   
   // Extract streak and user streak data
   const streak = streakData?.streak || null
@@ -44,6 +45,7 @@ export default function StreakDetailPage() {
       // Refetch streak data to get updated user_streak information
       await refetchStreak()
       await refetchCheckins()
+      refetchRecentActivity() // Update recent activity feed
     } catch (error) {
       toast.error('Failed to join streak. Please try again.')
       console.error('Failed to join streak:', error)
@@ -62,6 +64,7 @@ export default function StreakDetailPage() {
       toast.success('Check-in successful!')
       // Refetch checkins and streak data
       refetchCheckins()
+      refetchRecentActivity() // Update recent activity feed
     } catch (error: any) {
       // Handle specific error cases
       if (error.message?.includes('Checkin already exists for this date')) {
@@ -271,37 +274,10 @@ export default function StreakDetailPage() {
             />
           )}
 
-          {/* Recent Activity */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {[
-                  { user: 'streak_master', action: 'checked in', time: '2 hours ago' },
-                  { user: 'focused_user', action: 'joined the streak', time: '1 day ago' },
-                  { user: 'digital_detoxer', action: 'checked in', time: '1 day ago' },
-                ].map((activity, index) => (
-                  <div key={index} className="flex items-center gap-3 text-sm">
-                    <Avatar className="h-6 w-6">
-                      <AvatarFallback className="text-xs">
-                        {activity.user.charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="text-gray-600">
-                      <span className="font-medium">{activity.user}</span> {activity.action}
-                    </span>
-                    <span className="text-gray-400 ml-auto">{activity.time}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-6">
+        <div className="lg:col-span-1 space-y-6">
           {/* Leaderboard */}
           <Card>
             <CardHeader>
@@ -388,11 +364,56 @@ export default function StreakDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Recent Activity */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Activity</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {recentActivityLoading ? (
+                  <div className="text-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto"></div>
+                  </div>
+                ) : recentActivityData?.activities && recentActivityData.activities.length > 0 ? (
+                  recentActivityData.activities.map((activity) => (
+                    <div key={activity.id} className="flex items-center gap-3 text-sm">
+                      <Avatar className="h-6 w-6">
+                        <AvatarImage src={activity.user.avatar_url} />
+                        <AvatarFallback className="text-xs">
+                          {(activity.user.display_name || activity.user.username).charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-gray-600 flex-1">
+                        <span className="font-medium">{activity.user.display_name || activity.user.username}</span> {activity.action}
+                      </span>
+                      <span className="text-gray-400 text-xs">
+                        {new Date(activity.timestamp).toLocaleDateString() === new Date().toLocaleDateString() 
+                          ? 'Today' 
+                          : new Date(activity.timestamp).toLocaleDateString() === new Date(Date.now() - 24 * 60 * 60 * 1000).toLocaleDateString()
+                          ? 'Yesterday'
+                          : new Date(activity.timestamp).toLocaleDateString()
+                        }
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-gray-500">
+                    No recent activity yet
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Comments Section */}
-        <div className="mt-8">
-          <CommentsSection streakId={streakId} />
+        <div className="lg:col-span-2">
+          <CommentsSection 
+            streakId={streakId} 
+            onCommentPosted={refetchRecentActivity}
+          />
         </div>
       </div>
     </div>

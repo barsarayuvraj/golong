@@ -133,9 +133,10 @@ function CommentItem({
 
 interface CommentsSectionProps {
   streakId: string
+  onCommentPosted?: () => void
 }
 
-export function CommentsSection({ streakId }: CommentsSectionProps) {
+export function CommentsSection({ streakId, onCommentPosted }: CommentsSectionProps) {
   const [newComment, setNewComment] = useState('')
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [editingComment, setEditingComment] = useState<string | null>(null)
@@ -172,6 +173,7 @@ export function CommentsSection({ streakId }: CommentsSectionProps) {
       setNewComment('')
       toast.success('Comment posted successfully!')
       refetch() // Refresh comments
+      onCommentPosted?.() // Notify parent component
     } catch (error) {
       toast.error('Failed to post comment. Please try again.')
       console.error('Error creating comment:', error)
