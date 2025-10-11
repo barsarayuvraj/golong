@@ -122,9 +122,12 @@ export default function MyStreaksPage() {
           )
         `)
         .eq('user_id', userId)
+        .eq('is_active', true)
         .order('joined_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        throw error
+      }
       setUserStreaks(data || [])
     } catch (error) {
       console.error('Error fetching user streaks:', error)

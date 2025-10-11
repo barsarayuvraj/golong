@@ -7,7 +7,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Progress } from '@/components/ui/progress'
-import { Flame, Users, Calendar, CheckCircle, Plus, Trophy, Target } from 'lucide-react'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Flame, Users, Calendar, CheckCircle, Plus, Trophy, Target, Settings, LogOut } from 'lucide-react'
 import Link from 'next/link'
 import { Streak, UserStreak, LeaderboardEntry } from '@/types/database'
 import { CommentsSection } from './comments-section'
@@ -21,6 +23,8 @@ import { toast } from 'sonner'
 export default function StreakDetailPage() {
   const params = useParams()
   const streakId = params.id as string
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false)
+  const [leavingStreak, setLeavingStreak] = useState(false)
   
   // Use our custom hooks for API calls
   const { data: streakData, loading: streakLoading, error: streakError, refetch: refetchStreak } = useStreak(streakId)
@@ -93,6 +97,38 @@ export default function StreakDetailPage() {
     if (todayCheckin) return false
     
     return true
+  }
+
+  const handleLeaveStreak = async () => {
+    if (!userStreak) return
+    
+    setLeavingStreak(true)
+    try {
+      const response = await fetch(`/api/streaks/${streakId}/leave`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to leave streak')
+      }
+
+      toast.success('You have successfully left the streak')
+      setShowLeaveDialog(false)
+      
+      // Simple redirect with hard reload
+      setTimeout(() => {
+        window.location.href = '/my-streaks'
+      }, 1000)
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to leave streak. Please try again.')
+      console.error('Failed to leave streak:', error)
+    } finally {
+      setLeavingStreak(false)
+    }
   }
 
   if (streakLoading) {
@@ -184,10 +220,29 @@ export default function StreakDetailPage() {
           {userStreak && (
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Target className="mr-2 h-5 w-5" />
-                  Your Progress
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center">
+                    <Target className="mr-2 h-5 w-5" />
+                    Your Progress
+                  </CardTitle>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <Settings className="h-4 w-4" />
+                        <span className="sr-only">Streak options</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem 
+                        onClick={() => setShowLeaveDialog(true)}
+                        className="text-red-600 focus:text-red-600"
+                      >
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Leave Streak
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -467,6 +522,44 @@ export default function StreakDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Leave Streak Confirmation Dialog */}
+      <Dialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Leave Streak</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to leave this streak? You will lose all the progress you have made in this streak.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowLeaveDialog(false)}
+              disabled={leavingStreak}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleLeaveStreak}
+              disabled={leavingStreak}
+            >
+              {leavingStreak ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Leaving...
+                </>
+              ) : (
+                <>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Leave Streak
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
