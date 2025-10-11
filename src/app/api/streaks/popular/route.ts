@@ -8,13 +8,16 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '12')
     const offset = parseInt(searchParams.get('offset') || '0')
+    const search = searchParams.get('search') || ''
+    const category = searchParams.get('category') || ''
+    const sortBy = searchParams.get('sortBy') || 'created_at'
 
     // Get the current user (optional - for checking participation status)
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     const currentUserId = user?.id
 
-    // Get popular public streaks with participant count
-    const { data: streaks, error: streaksError, count } = await supabase
+    // Build the query
+    let query = supabase
       .from('streaks')
       .select(`
         id,
@@ -23,6 +26,7 @@ export async function GET(request: NextRequest) {
         category,
         created_at,
         is_public,
+        tags,
         profiles:created_by (
           id,
           username,
@@ -31,7 +35,35 @@ export async function GET(request: NextRequest) {
         )
       `, { count: 'exact' })
       .eq('is_public', true)
-      .order('created_at', { ascending: false })
+
+    // Note: We'll apply search filter after fetching data for better reliability
+
+    // Apply category filter
+    if (category && category !== 'All') {
+      query = query.eq('category', category)
+    }
+
+    // Apply sorting
+    switch (sortBy) {
+      case 'title':
+        query = query.order('title', { ascending: true })
+        break
+      case 'popularity':
+        // We'll sort by participant count after fetching
+        query = query.order('created_at', { ascending: false })
+        break
+      case 'trending':
+        // Sort by recent activity (created_at for now)
+        query = query.order('created_at', { ascending: false })
+        break
+      case 'created_at':
+      default:
+        query = query.order('created_at', { ascending: false })
+        break
+    }
+
+    // Apply pagination
+    const { data: streaks, error: streaksError, count } = await query
       .range(offset, offset + limit - 1)
 
     if (streaksError) {
@@ -70,14 +102,27 @@ export async function GET(request: NextRequest) {
     }
 
     // Combine streak data with participant count and user participation
-    const popularStreaks = streaks.map(streak => ({
+    let popularStreaks = streaks.map(streak => ({
       ...streak,
       participant_count: participantMap[streak.id] || 0,
       hasJoined: userParticipationMap[streak.id] || false
     }))
 
-    // Sort by participant count (most popular first)
-    popularStreaks.sort((a, b) => b.participant_count - a.participant_count)
+    // Apply search filter after fetching data
+    if (search) {
+      const searchLower = search.toLowerCase()
+      popularStreaks = popularStreaks.filter(streak => 
+        streak.title.toLowerCase().includes(searchLower) ||
+        streak.description?.toLowerCase().includes(searchLower) ||
+        streak.profiles?.username?.toLowerCase().includes(searchLower) ||
+        streak.tags?.some(tag => tag.toLowerCase().includes(searchLower))
+      )
+    }
+
+    // Apply final sorting if needed
+    if (sortBy === 'popularity') {
+      popularStreaks.sort((a, b) => b.participant_count - a.participant_count)
+    }
 
     return NextResponse.json({ 
       streaks: popularStreaks,

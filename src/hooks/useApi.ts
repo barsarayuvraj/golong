@@ -74,35 +74,63 @@ export function usePopularStreaks(params?: {
   )
 }
 
-export function useInfinitePopularStreaks(limit: number = 12) {
+export function useInfinitePopularStreaks(params: {
+  limit?: number
+  search?: string
+  category?: string
+  sortBy?: string
+} = {}) {
+  const { limit = 12, search = '', category = 'All', sortBy = 'created_at' } = params
+  
   const [streaks, setStreaks] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [searchLoading, setSearchLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(true)
   const [offset, setOffset] = useState(0)
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
 
   const loadInitialData = useCallback(async () => {
     try {
-      setLoading(true)
+      if (isInitialLoad) {
+        setLoading(true)
+      } else {
+        setSearchLoading(true)
+      }
       setError(null)
-      const result = await ApiService.getPopularStreaks({ limit, offset: 0 })
+      setOffset(0)
+      const result = await ApiService.getPopularStreaks({ 
+        limit, 
+        offset: 0,
+        search,
+        category,
+        sortBy
+      })
       setStreaks(result.streaks || [])
       setHasMore(result.hasMore || false)
       setOffset(limit)
+      setIsInitialLoad(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
       setLoading(false)
+      setSearchLoading(false)
     }
-  }, [limit])
+  }, [limit, search, category, sortBy, isInitialLoad])
 
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return
 
     try {
       setLoadingMore(true)
-      const result = await ApiService.getPopularStreaks({ limit, offset })
+      const result = await ApiService.getPopularStreaks({ 
+        limit, 
+        offset,
+        search,
+        category,
+        sortBy
+      })
       setStreaks(prev => [...prev, ...(result.streaks || [])])
       setHasMore(result.hasMore || false)
       setOffset(prev => prev + limit)
@@ -111,7 +139,7 @@ export function useInfinitePopularStreaks(limit: number = 12) {
     } finally {
       setLoadingMore(false)
     }
-  }, [limit, offset, loadingMore, hasMore])
+  }, [limit, offset, loadingMore, hasMore, search, category, sortBy])
 
   useEffect(() => {
     loadInitialData()
@@ -121,6 +149,7 @@ export function useInfinitePopularStreaks(limit: number = 12) {
     streaks, 
     loading, 
     loadingMore,
+    searchLoading,
     error, 
     hasMore,
     loadMore,

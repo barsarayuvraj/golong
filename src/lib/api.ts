@@ -102,10 +102,16 @@ export class ApiService {
   static async getPopularStreaks(params?: {
     limit?: number
     offset?: number
+    search?: string
+    category?: string
+    sortBy?: string
   }) {
     const searchParams = new URLSearchParams()
     if (params?.limit) searchParams.set('limit', params.limit.toString())
     if (params?.offset) searchParams.set('offset', params.offset.toString())
+    if (params?.search) searchParams.set('search', params.search)
+    if (params?.category && params.category !== 'All') searchParams.set('category', params.category)
+    if (params?.sortBy) searchParams.set('sortBy', params.sortBy)
     
     const query = searchParams.toString()
     const url = `${API_BASE_URL}/api/streaks/popular${query ? `?${query}` : ''}`
