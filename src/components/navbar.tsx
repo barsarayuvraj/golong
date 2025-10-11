@@ -150,7 +150,7 @@ export default function Navbar() {
                 {/* Primary Actions */}
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                   <Link href="/explore">
-                    <Button variant="ghost" size="sm" className="flex items-center gap-1">
+                    <Button variant="ghost" size="sm" className="flex items-center gap-1 bg-gradient-to-r from-red-50 to-orange-50 hover:from-red-100 hover:to-orange-100 text-red-700 border border-red-200">
                       <Flame className="h-4 w-4" />
                       <span className="hidden xl:inline">Explore</span>
                     </Button>
@@ -170,8 +170,8 @@ export default function Navbar() {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="sm" className="flex items-center gap-1">
-                      <Zap className="h-4 w-4" />
-                      <span className="hidden xl:inline">Tools</span>
+                      <Menu className="h-4 w-4" />
+                      <span className="hidden xl:inline">More</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-48" align="end">
@@ -349,7 +349,7 @@ export default function Navbar() {
                     </div>
                   </Link>
                   <div className="border-t pt-2 mt-2">
-                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 py-1">Tools</div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 py-1">More</div>
                     <Link href="/templates" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100">
                       <div className="flex items-center gap-2">
                         <Sparkles className="h-4 w-4" />
