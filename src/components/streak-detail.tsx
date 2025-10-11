@@ -95,16 +95,33 @@ export default function StreakDetailPage() {
       toast.success('Check-in successful!')
       // Refetch checkins and streak data
       refetchCheckins()
-    } catch (error) {
-      toast.error('Failed to check in. Please try again.')
-      console.error('Failed to check in:', error)
+    } catch (error: any) {
+      // Handle specific error cases
+      if (error.message?.includes('Checkin already exists for this date')) {
+        toast.error('You have already checked in today!')
+        // Refetch data to update UI state
+        refetchCheckins()
+      } else {
+        toast.error('Failed to check in. Please try again.')
+        console.error('Failed to check in:', error)
+      }
     }
   }
 
   const canCheckIn = () => {
     if (!userStreak) return false
     const today = new Date().toISOString().split('T')[0]
-    return userStreak.last_checkin_date !== today
+    
+    // Check if user already checked in today (from userStreak.last_checkin_date)
+    if (userStreak.last_checkin_date === today) return false
+    
+    // Also check if there's a check-in for today in the checkins data
+    const todayCheckin = checkinsData?.checkins?.find(
+      checkin => checkin.checkin_date === today
+    )
+    if (todayCheckin) return false
+    
+    return true
   }
 
   if (streakLoading) {
@@ -231,9 +248,13 @@ export default function StreakDetailPage() {
                   </Button>
                 )}
 
-                {!canCheckIn() && userStreak.last_checkin_date && (
-                  <div className="text-center text-green-600 text-sm">
-                    ✅ Checked in today!
+                {!canCheckIn() && userStreak && (
+                  <div className="text-center">
+                    <Button disabled className="w-full bg-gray-100 text-gray-500 cursor-not-allowed">
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                      Already Checked In Today
+                    </Button>
+                    <p className="text-green-600 text-sm mt-2">✅ Great job! Come back tomorrow.</p>
                   </div>
                 )}
               </CardContent>
