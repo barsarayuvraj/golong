@@ -22,7 +22,7 @@ export default function StreakDetailPage() {
   const streakId = params.id as string
   
   // Use our custom hooks for API calls
-  const { data: streakData, loading: streakLoading, error: streakError } = useStreak(streakId)
+  const { data: streakData, loading: streakLoading, error: streakError, refetch: refetchStreak } = useStreak(streakId)
   const { data: checkinsData, loading: checkinsLoading, refetch: refetchCheckins } = useCheckins({ streak_id: streakId })
   const { joinStreak, loading: joining } = useJoinStreak()
   const { createCheckin, loading: checkingIn } = useCreateCheckin()
@@ -76,7 +76,9 @@ export default function StreakDetailPage() {
     try {
       await joinStreak(streakId)
       toast.success('Successfully joined the streak!')
-      // The streak data will be refetched automatically by the hook
+      // Refetch streak data to get updated user_streak information
+      await refetchStreak()
+      await refetchCheckins()
     } catch (error) {
       toast.error('Failed to join streak. Please try again.')
       console.error('Failed to join streak:', error)

@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Users, Eye, UserPlus, Calendar, User, Loader2 } from 'lucide-react'
+import { Users, Eye, UserPlus, Calendar, User, Loader2, CheckCircle } from 'lucide-react'
 import { useInfinitePopularStreaks } from '@/hooks/useApi'
 import { useJoinStreak } from '@/hooks/useApi'
 import { useRouter } from 'next/navigation'
@@ -19,6 +19,7 @@ interface PopularStreak {
   created_at: string
   is_public: boolean
   participant_count: number
+  hasJoined: boolean
   profiles: {
     id: string
     username: string
@@ -45,12 +46,19 @@ export function PopularStreaks({ currentUserId }: PopularStreaksProps) {
   const { joinStreak, loading: joiningStreak } = useJoinStreak()
   const router = useRouter()
   const observerRef = useRef<HTMLDivElement>(null)
+  
+  const isAuthenticated = !!currentUserId
 
   const handleViewStreak = (streakId: string) => {
     router.push(`/streaks/${streakId}`)
   }
 
   const handleJoinStreak = async (streakId: string) => {
+    if (!isAuthenticated) {
+      router.push('/auth')
+      return
+    }
+    
     try {
       await joinStreak(streakId)
       toast.success('Successfully joined the streak!')
@@ -128,10 +136,13 @@ export function PopularStreaks({ currentUserId }: PopularStreaksProps) {
             viewport={{ once: true }}
             whileHover={{ y: -8, scale: 1.02 }}
           >
-            <Card className="h-full hover:shadow-2xl transition-all duration-300 border-0 shadow-lg overflow-hidden group">
+            <Card 
+              className="h-full hover:shadow-2xl transition-all duration-300 border-0 shadow-lg overflow-hidden group cursor-pointer"
+              onClick={() => handleViewStreak(streak.id)}
+            >
               <div className={`h-2 ${colorClass} w-full`} />
               <CardHeader>
-                <CardTitle className="text-lg font-bold group-hover:text-blue-600 transition-colors">
+                <CardTitle className="text-lg font-bold group-hover:text-blue-600 transition-colors cursor-pointer">
                   {streak.title}
                 </CardTitle>
                 <CardDescription className="flex items-center gap-2 flex-wrap">
@@ -155,31 +166,61 @@ export function PopularStreaks({ currentUserId }: PopularStreaksProps) {
                     <span>by {streak.profiles.display_name || streak.profiles.username}</span>
                   </div>
                   
-                  <motion.div
-                    whileHover={{ scale: 1.05 }}
-                    className="mt-4"
-                  >
+                  <motion.div className="mt-4 space-y-2">
                     {isOwner ? (
                       <Button 
                         variant="outline" 
                         size="sm" 
                         className="w-full"
-                        onClick={() => handleViewStreak(streak.id)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleViewStreak(streak.id)
+                        }}
                       >
                         <Eye className="h-4 w-4 mr-2" />
                         View Streak
                       </Button>
-                    ) : (
+                    ) : streak.hasJoined ? (
                       <Button 
-                        variant="outline" 
+                        variant="default" 
                         size="sm" 
                         className="w-full"
-                        onClick={() => handleJoinStreak(streak.id)}
-                        disabled={joiningStreak}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleViewStreak(streak.id)
+                        }}
                       >
-                        <UserPlus className="h-4 w-4 mr-2" />
-                        {joiningStreak ? 'Joining...' : 'Join Streak'}
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        View My Progress
                       </Button>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="flex-1"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleViewStreak(streak.id)
+                          }}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          View Details
+                        </Button>
+                        <Button 
+                          variant="default" 
+                          size="sm" 
+                          className="flex-1"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleJoinStreak(streak.id)
+                          }}
+                          disabled={joiningStreak}
+                        >
+                          <UserPlus className="h-4 w-4 mr-2" />
+                          {joiningStreak ? 'Joining...' : (isAuthenticated ? 'Join' : 'Sign In')}
+                        </Button>
+                      </div>
                     )}
                   </motion.div>
                 </div>

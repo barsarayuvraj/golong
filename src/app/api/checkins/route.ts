@@ -46,7 +46,8 @@ export async function GET(request: NextRequest) {
     if (user_streak_id) {
       query = query.eq('user_streak_id', user_streak_id)
     } else if (streak_id) {
-      query = query.eq('user_streaks.streak_id', streak_id)
+      // When filtering by streak_id, also filter by current user to show only their check-ins
+      query = query.eq('user_streaks.streak_id', streak_id).eq('user_streaks.user_id', user.id)
     } else if (user_id) {
       query = query.eq('user_streaks.user_id', user_id)
     } else {

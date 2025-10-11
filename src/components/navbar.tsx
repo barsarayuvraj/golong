@@ -215,7 +215,7 @@ export default function Navbar() {
                 </DropdownMenu>
 
                 {/* Notifications */}
-                <NotificationsDropdown />
+                {user && <NotificationsDropdown />}
 
                 {/* User Menu */}
                 <DropdownMenu>

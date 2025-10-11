@@ -9,6 +9,10 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '12')
     const offset = parseInt(searchParams.get('offset') || '0')
 
+    // Get the current user (optional - for checking participation status)
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const currentUserId = user?.id
+
     // Get popular public streaks with participant count
     const { data: streaks, error: streaksError, count } = await supabase
       .from('streaks')
@@ -49,10 +53,27 @@ export async function GET(request: NextRequest) {
       return acc
     }, {} as Record<string, number>) || {}
 
-    // Combine streak data with participant count
+    // Get user's participation status for these streaks (if authenticated)
+    let userParticipationMap: Record<string, boolean> = {}
+    if (currentUserId) {
+      const { data: userStreaks } = await supabase
+        .from('user_streaks')
+        .select('streak_id')
+        .in('streak_id', streakIds)
+        .eq('user_id', currentUserId)
+        .eq('is_active', true)
+
+      userParticipationMap = userStreaks?.reduce((acc, curr) => {
+        acc[curr.streak_id] = true
+        return acc
+      }, {} as Record<string, boolean>) || {}
+    }
+
+    // Combine streak data with participant count and user participation
     const popularStreaks = streaks.map(streak => ({
       ...streak,
-      participant_count: participantMap[streak.id] || 0
+      participant_count: participantMap[streak.id] || 0,
+      hasJoined: userParticipationMap[streak.id] || false
     }))
 
     // Sort by participant count (most popular first)

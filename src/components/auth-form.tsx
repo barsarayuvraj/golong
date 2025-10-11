@@ -61,20 +61,39 @@ export default function AuthForm({ mode, onToggleMode }: AuthFormProps) {
 
     try {
       if (mode === 'signup') {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              username,
-            },
+        // Use our custom signup API endpoint
+        const response = await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
           },
+          body: JSON.stringify({
+            email,
+            password,
+            username,
+          }),
         })
 
-        if (error) throw error
+        const result = await response.json()
 
-        if (data.user) {
-          setMessage('Check your email for the confirmation link!')
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to create account')
+        }
+
+        if (result.success) {
+          if (result.session) {
+            // User was immediately signed in
+            setMessage('Welcome! You have been successfully signed up and logged in.')
+            setTimeout(() => {
+              window.location.href = '/' // Redirect to home page
+            }, 1000)
+                  } else if (result.requiresSignIn) {
+                    // Account created but needs manual sign-in
+                    setMessage(result.message || 'Account created successfully! Please sign in below.')
+                    setTimeout(() => {
+                      onToggleMode()
+                    }, 1500)
+                  }
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({

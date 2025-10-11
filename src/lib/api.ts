@@ -16,7 +16,8 @@ async function getAuthHeaders() {
     
     if (!session?.access_token) {
       console.error('No access token found in session')
-      throw new Error('No authentication token found')
+      // Return null instead of throwing error to allow for graceful handling
+      return null
     }
     
     console.log('Auth headers created successfully')
@@ -26,7 +27,7 @@ async function getAuthHeaders() {
     }
   } catch (error) {
     console.error('Error creating auth headers:', error)
-    throw error
+    return null
   }
 }
 
@@ -36,12 +37,17 @@ async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`
-  const headers = await getAuthHeaders()
+  const authHeaders = await getAuthHeaders()
+  
+  // If no auth headers, return early with a meaningful error
+  if (!authHeaders) {
+    throw new Error('Authentication required. Please sign in to continue.')
+  }
   
   const response = await fetch(url, {
     ...options,
     headers: {
-      ...headers,
+      ...authHeaders,
       ...options.headers,
     },
   })
@@ -94,7 +100,21 @@ export class ApiService {
     if (params?.offset) searchParams.set('offset', params.offset.toString())
     
     const query = searchParams.toString()
-    return apiRequest(`/api/streaks/popular${query ? `?${query}` : ''}`)
+    const url = `${API_BASE_URL}/api/streaks/popular${query ? `?${query}` : ''}`
+    
+    // Popular streaks don't require authentication
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
+    }
+    
+    return response.json()
   }
 
   static async createStreak(data: {
@@ -111,13 +131,13 @@ export class ApiService {
   }
 
   static async joinStreak(streakId: string) {
-    return apiRequest(`/api/streaks/${streakId}/join`, {
+    return apiRequest(`/api/streaks/${streakId}?action=join`, {
       method: 'POST',
     })
   }
 
   static async leaveStreak(streakId: string) {
-    return apiRequest(`/api/streaks/${streakId}/leave`, {
+    return apiRequest(`/api/streaks/${streakId}?action=leave`, {
       method: 'POST',
     })
   }
