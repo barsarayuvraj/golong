@@ -50,6 +50,70 @@ export function useStreak(id: string) {
   )
 }
 
+export function usePopularStreaks(params?: {
+  limit?: number
+  offset?: number
+}) {
+  return useApiCall(
+    () => ApiService.getPopularStreaks(params),
+    [params?.limit, params?.offset]
+  )
+}
+
+export function useInfinitePopularStreaks(limit: number = 12) {
+  const [streaks, setStreaks] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [hasMore, setHasMore] = useState(true)
+  const [offset, setOffset] = useState(0)
+
+  const loadInitialData = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const result = await ApiService.getPopularStreaks({ limit, offset: 0 })
+      setStreaks(result.streaks || [])
+      setHasMore(result.hasMore || false)
+      setOffset(limit)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }, [limit])
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return
+
+    try {
+      setLoadingMore(true)
+      const result = await ApiService.getPopularStreaks({ limit, offset })
+      setStreaks(prev => [...prev, ...(result.streaks || [])])
+      setHasMore(result.hasMore || false)
+      setOffset(prev => prev + limit)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load more streaks')
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [limit, offset, loadingMore, hasMore])
+
+  useEffect(() => {
+    loadInitialData()
+  }, [loadInitialData])
+
+  return { 
+    streaks, 
+    loading, 
+    loadingMore,
+    error, 
+    hasMore,
+    loadMore,
+    refetch: loadInitialData
+  }
+}
+
 export function useCreateStreak() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

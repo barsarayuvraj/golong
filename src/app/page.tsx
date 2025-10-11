@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Flame, Users, TrendingUp, Plus, Sparkles, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
+import { PopularStreaks } from '@/components/popular-streaks'
 
 export default function Home() {
   const [user, setUser] = useState<SupabaseUser | null>(null)
@@ -241,62 +242,13 @@ export default function Home() {
             viewport={{ once: true }}
             className="text-center mb-16"
           >
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">Popular Streak Ideas</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Discover Public Streaks</h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Get inspired by what others are building
+              Explore all public streaks created by the community. Join any streak that interests you!
             </p>
           </motion.div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              { title: "No Social Media", days: 30, participants: 1247, color: "bg-red-500" },
-              { title: "Daily Exercise", days: 100, participants: 892, color: "bg-green-500" },
-              { title: "Read 1 Hour", days: 365, participants: 654, color: "bg-blue-500" },
-              { title: "No Soda", days: 60, participants: 432, color: "bg-orange-500" },
-              { title: "Meditate Daily", days: 21, participants: 789, color: "bg-purple-500" },
-              { title: "Learn Spanish", days: 90, participants: 321, color: "bg-pink-500" },
-            ].map((streak, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 40 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
-                viewport={{ once: true }}
-                whileHover={{ y: -8, scale: 1.02 }}
-              >
-                <Card className="h-full hover:shadow-2xl transition-all duration-300 border-0 shadow-lg overflow-hidden group">
-                  <div className={`h-2 ${streak.color} w-full`} />
-                  <CardHeader>
-                    <CardTitle className="text-lg font-bold group-hover:text-blue-600 transition-colors">
-                      {streak.title}
-                    </CardTitle>
-                    <CardDescription className="flex items-center gap-2">
-                      <Badge variant="secondary" className="bg-gray-100">
-                        {streak.days} days
-                      </Badge>
-                      <span className="text-sm text-gray-500 flex items-center gap-1">
-                        <Users className="h-3 w-3" />
-                        {streak.participants.toLocaleString()} participants
-                      </span>
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-600">
-                      Join thousands of people working on this streak together.
-                    </p>
-                    <motion.div
-                      whileHover={{ scale: 1.05 }}
-                      className="mt-4"
-                    >
-                      <Button variant="outline" size="sm" className="w-full">
-                        Join Streak
-                      </Button>
-                    </motion.div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
+          <PopularStreaks currentUserId={user?.id} />
         </motion.div>
       </main>
     </div>

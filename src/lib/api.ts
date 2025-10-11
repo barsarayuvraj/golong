@@ -85,6 +85,18 @@ export class ApiService {
     }
   }
 
+  static async getPopularStreaks(params?: {
+    limit?: number
+    offset?: number
+  }) {
+    const searchParams = new URLSearchParams()
+    if (params?.limit) searchParams.set('limit', params.limit.toString())
+    if (params?.offset) searchParams.set('offset', params.offset.toString())
+    
+    const query = searchParams.toString()
+    return apiRequest(`/api/streaks/popular${query ? `?${query}` : ''}`)
+  }
+
   static async createStreak(data: {
     title: string
     description: string
