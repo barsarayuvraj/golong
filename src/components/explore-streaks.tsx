@@ -441,7 +441,7 @@ export default function ExploreStreaks() {
       {/* Streaks Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {sortedStreaks.map((streak) => (
-          <Card key={streak.id} className="hover:shadow-lg transition-shadow">
+          <Card key={streak.id} className="hover:shadow-lg transition-shadow h-full flex flex-col">
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -459,7 +459,7 @@ export default function ExploreStreaks() {
               </div>
             </CardHeader>
             
-            <CardContent>
+            <CardContent className="flex-1 flex flex-col justify-end">
               <div className="space-y-3">
                 {/* Tags */}
                 <div className="flex flex-wrap gap-1">

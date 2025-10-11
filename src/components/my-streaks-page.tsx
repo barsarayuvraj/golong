@@ -378,8 +378,9 @@ export default function MyStreaksPage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
+                    className="h-full"
                   >
-                    <Card className="hover:shadow-lg transition-shadow duration-300 border-l-4 border-l-green-500">
+                    <Card className="hover:shadow-lg transition-shadow duration-300 border-l-4 border-l-green-500 h-full flex flex-col">
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
@@ -401,7 +402,7 @@ export default function MyStreaksPage() {
                           ))}
                         </div>
                       </CardHeader>
-                      <CardContent className="pt-0">
+                      <CardContent className="pt-0 flex-1 flex flex-col justify-end">
                         <div className="space-y-3">
                           <div className="flex items-center justify-between text-sm">
                             <span className="text-gray-600">Current Streak</span>
