@@ -50,6 +50,20 @@ export function useStreak(id: string) {
   )
 }
 
+export function useLeaderboard(streakId: string) {
+  return useApiCall(
+    () => ApiService.getLeaderboard(streakId),
+    [streakId]
+  )
+}
+
+export function useStreakStats(streakId: string) {
+  return useApiCall(
+    () => ApiService.getStreakStats(streakId),
+    [streakId]
+  )
+}
+
 export function usePopularStreaks(params?: {
   limit?: number
   offset?: number

@@ -14,7 +14,7 @@ import { CommentsSection } from './comments-section'
 import { SocialShare } from './social-share'
 import { StreakCalendar } from './streak-calendar'
 import { StreakInsights } from './streak-insights'
-import { useStreak, useJoinStreak, useCreateCheckin, useCheckins } from '@/hooks/useApi'
+import { useStreak, useJoinStreak, useCreateCheckin, useCheckins, useLeaderboard, useStreakStats } from '@/hooks/useApi'
 import { toast } from 'sonner'
 
 export default function StreakDetailPage() {
@@ -26,51 +26,16 @@ export default function StreakDetailPage() {
   const { data: checkinsData, loading: checkinsLoading, refetch: refetchCheckins } = useCheckins({ streak_id: streakId })
   const { joinStreak, loading: joining } = useJoinStreak()
   const { createCheckin, loading: checkingIn } = useCreateCheckin()
-  
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  const { data: leaderboardData, loading: leaderboardLoading } = useLeaderboard(streakId)
+  const { data: statsData, loading: statsLoading } = useStreakStats(streakId)
   
   // Extract streak and user streak data
   const streak = streakData?.streak || null
   const userStreak = streakData?.user_streak || null
 
-  // Load leaderboard data (this would come from a separate API endpoint)
-  useEffect(() => {
-    // TODO: Implement leaderboard API endpoint
-    // For now, we'll use mock data
-    const mockLeaderboard: LeaderboardEntry[] = [
-      {
-        user_id: 'user1',
-        username: 'streak_master',
-        display_name: 'Streak Master',
-        avatar_url: '',
-        current_streak_days: 45,
-        longest_streak_days: 60,
-        last_checkin_date: '2024-01-07',
-        joined_at: '2023-11-01T00:00:00Z'
-      },
-      {
-        user_id: 'user2',
-        username: 'focused_user',
-        display_name: 'Focused User',
-        avatar_url: '',
-        current_streak_days: 30,
-        longest_streak_days: 45,
-        last_checkin_date: '2024-01-07',
-        joined_at: '2023-12-01T00:00:00Z'
-      },
-      {
-        user_id: 'user3',
-        username: 'digital_detoxer',
-        display_name: 'Digital Detoxer',
-        avatar_url: '',
-        current_streak_days: 15,
-        longest_streak_days: 30,
-        last_checkin_date: '2024-01-07',
-        joined_at: '2023-12-15T00:00:00Z'
-      }
-    ]
-    setLeaderboard(mockLeaderboard)
-  }, [streakId])
+  // Extract leaderboard and stats data
+  const leaderboard = leaderboardData?.leaderboard || []
+  const stats = statsData?.stats || null
 
   const handleJoinStreak = async () => {
     try {
@@ -186,7 +151,9 @@ export default function StreakDetailPage() {
             <SocialShare streak={streak} />
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-gray-400" />
-              <span className="text-sm text-gray-600">1,247 participants</span>
+              <span className="text-sm text-gray-600">
+                {statsLoading ? '... participants' : `${stats?.total_participants || 0} participants`}
+              </span>
             </div>
           </div>
         </div>
@@ -350,20 +317,35 @@ export default function StreakDetailPage() {
                     <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-xs font-medium">
                       {index + 1}
                     </div>
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className="text-xs">
-                        {entry.display_name?.charAt(0) || entry.username.charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">
-                        {entry.display_name || entry.username}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {entry.current_streak_days} days
-                      </div>
-                    </div>
-                    <Flame className="h-4 w-4 text-orange-500" />
+                    {entry.user_id.startsWith('placeholder_') ? (
+                      <>
+                        <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+                          <span className="text-xs text-gray-400">-</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-400">-</div>
+                          <div className="text-xs text-gray-400">- days</div>
+                        </div>
+                        <Flame className="h-4 w-4 text-gray-300" />
+                      </>
+                    ) : (
+                      <>
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="text-xs">
+                            {entry.display_name?.charAt(0) || entry.username.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">
+                            {entry.display_name || entry.username}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {entry.current_streak_days} days
+                          </div>
+                        </div>
+                        <Flame className="h-4 w-4 text-orange-500" />
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
@@ -378,20 +360,30 @@ export default function StreakDetailPage() {
             <CardContent className="space-y-4">
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">Total Participants</span>
-                <span className="font-medium">1,247</span>
+                <span className="font-medium">
+                  {statsLoading ? '...' : (stats?.total_participants || 0)}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">Average Streak</span>
-                <span className="font-medium">12 days</span>
+                <span className="font-medium">
+                  {statsLoading ? '...' : `${stats?.average_streak || 0} days`}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">Longest Streak</span>
-                <span className="font-medium">60 days</span>
+                <span className="font-medium">
+                  {statsLoading ? '...' : `${stats?.longest_streak || 0} days`}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">Created</span>
                 <span className="font-medium">
-                  {new Date(streak.created_at).toLocaleDateString()}
+                  {statsLoading ? '...' : (
+                    stats?.created_at ? new Date(stats.created_at).toLocaleDateString() : 
+                    streak?.created_at ? new Date(streak.created_at).toLocaleDateString() : 
+                    '-'
+                  )}
                 </span>
               </div>
             </CardContent>

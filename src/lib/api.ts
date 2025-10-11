@@ -91,6 +91,14 @@ export class ApiService {
     }
   }
 
+  static async getLeaderboard(streakId: string) {
+    return apiRequest(`/api/streaks/${streakId}/leaderboard`)
+  }
+
+  static async getStreakStats(streakId: string) {
+    return apiRequest(`/api/streaks/${streakId}/stats`)
+  }
+
   static async getPopularStreaks(params?: {
     limit?: number
     offset?: number

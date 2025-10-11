@@ -43,9 +43,10 @@ const colorClasses = [
 
 export function PopularStreaks({ currentUserId }: PopularStreaksProps) {
   const { streaks, loading, loadingMore, error, hasMore, loadMore } = useInfinitePopularStreaks(12)
-  const { joinStreak, loading: joiningStreak } = useJoinStreak()
+  const { joinStreak } = useJoinStreak()
   const router = useRouter()
   const observerRef = useRef<HTMLDivElement>(null)
+  const [joiningStreaks, setJoiningStreaks] = useState<Set<string>>(new Set())
   
   const isAuthenticated = !!currentUserId
 
@@ -59,6 +60,9 @@ export function PopularStreaks({ currentUserId }: PopularStreaksProps) {
       return
     }
     
+    // Add this streak to the joining set
+    setJoiningStreaks(prev => new Set(prev).add(streakId))
+    
     try {
       await joinStreak(streakId)
       toast.success('Successfully joined the streak!')
@@ -66,6 +70,13 @@ export function PopularStreaks({ currentUserId }: PopularStreaksProps) {
       router.push(`/streaks/${streakId}`)
     } catch (error) {
       toast.error('Failed to join streak. Please try again.')
+    } finally {
+      // Remove this streak from the joining set
+      setJoiningStreaks(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(streakId)
+        return newSet
+      })
     }
   }
 
@@ -215,10 +226,10 @@ export function PopularStreaks({ currentUserId }: PopularStreaksProps) {
                             e.stopPropagation()
                             handleJoinStreak(streak.id)
                           }}
-                          disabled={joiningStreak}
+                          disabled={joiningStreaks.has(streak.id)}
                         >
                           <UserPlus className="h-4 w-4 mr-2" />
-                          {joiningStreak ? 'Joining...' : (isAuthenticated ? 'Join' : 'Sign In')}
+                          {joiningStreaks.has(streak.id) ? 'Joining...' : (isAuthenticated ? 'Join' : 'Sign In')}
                         </Button>
                       </div>
                     )}
