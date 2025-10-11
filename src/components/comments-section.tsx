@@ -10,8 +10,9 @@ import { createClient } from '@/lib/supabase-client'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { motion } from 'framer-motion'
-import { useComments, useCreateComment, useDeleteComment } from '@/hooks/useApi'
+import { useComments, useCreateComment, useDeleteComment, useUpdateComment } from '@/hooks/useApi'
 import { toast } from 'sonner'
+import { useRelativeTime } from '@/hooks/useRelativeTime'
 
 interface Comment {
   id: string
@@ -25,6 +26,111 @@ interface Comment {
   }
 }
 
+// Individual comment component with real-time relative time
+function CommentItem({ 
+  comment, 
+  user, 
+  editingComment, 
+  editContent, 
+  setEditContent, 
+  updating,
+  onEdit, 
+  onCancelEdit, 
+  onSaveEdit, 
+  onDelete 
+}: {
+  comment: Comment
+  user: SupabaseUser | null
+  editingComment: string | null
+  editContent: string
+  setEditContent: (content: string) => void
+  updating: boolean
+  onEdit: (commentId: string, content: string) => void
+  onCancelEdit: () => void
+  onSaveEdit: (commentId: string) => void
+  onDelete: (commentId: string) => void
+}) {
+  const relativeTime = useRelativeTime(comment.created_at)
+  
+  return (
+    <div className="flex gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+      <Avatar className="h-8 w-8">
+        <AvatarImage src={comment.profiles.avatar_url} />
+        <AvatarFallback>
+          {comment.profiles.username.charAt(0).toUpperCase()}
+        </AvatarFallback>
+      </Avatar>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="font-medium text-sm">{comment.profiles.username}</span>
+          <span className="text-xs text-gray-500">
+            {relativeTime}
+            {comment.updated_at !== comment.created_at && (
+              <span className="ml-1 text-gray-400">(edited)</span>
+            )}
+          </span>
+          {user?.id === comment.profiles.id && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                  <MoreVertical className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => onEdit(comment.id, comment.content)}
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => onDelete(comment.id)}
+                  className="text-red-600"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+        {editingComment === comment.id ? (
+          <div className="space-y-2">
+            <Textarea
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              className="min-h-[60px] resize-none text-sm"
+              placeholder="Edit your comment..."
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => onSaveEdit(comment.id)}
+                disabled={updating || !editContent.trim()}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {updating ? 'Saving...' : 'Save'}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onCancelEdit}
+                disabled={updating}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-700 whitespace-pre-wrap">
+            {comment.content}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 interface CommentsSectionProps {
   streakId: string
 }
@@ -32,6 +138,8 @@ interface CommentsSectionProps {
 export function CommentsSection({ streakId }: CommentsSectionProps) {
   const [newComment, setNewComment] = useState('')
   const [user, setUser] = useState<SupabaseUser | null>(null)
+  const [editingComment, setEditingComment] = useState<string | null>(null)
+  const [editContent, setEditContent] = useState('')
 
   const supabase = createClient()
   
@@ -39,6 +147,7 @@ export function CommentsSection({ streakId }: CommentsSectionProps) {
   const { data: commentsData, loading, error, refetch } = useComments(streakId)
   const { createComment, loading: submitting } = useCreateComment()
   const { deleteComment, loading: deleting } = useDeleteComment()
+  const { updateComment, loading: updating } = useUpdateComment()
   
   const comments = commentsData?.comments || []
 
@@ -77,6 +186,34 @@ export function CommentsSection({ streakId }: CommentsSectionProps) {
     } catch (error) {
       toast.error('Failed to delete comment. Please try again.')
       console.error('Error deleting comment:', error)
+    }
+  }
+
+  const handleEditComment = (commentId: string, currentContent: string) => {
+    setEditingComment(commentId)
+    setEditContent(currentContent)
+  }
+
+  const handleCancelEdit = () => {
+    setEditingComment(null)
+    setEditContent('')
+  }
+
+  const handleSaveEdit = async (commentId: string) => {
+    if (!editContent.trim()) {
+      toast.error('Comment cannot be empty')
+      return
+    }
+
+    try {
+      await updateComment(commentId, { content: editContent.trim() })
+      toast.success('Comment updated successfully!')
+      setEditingComment(null)
+      setEditContent('')
+      refetch() // Refresh comments
+    } catch (error) {
+      toast.error('Failed to update comment. Please try again.')
+      console.error('Error updating comment:', error)
     }
   }
 
@@ -158,43 +295,19 @@ export function CommentsSection({ streakId }: CommentsSectionProps) {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="flex gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
               >
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={comment.profiles.avatar_url} />
-                  <AvatarFallback>
-                    {comment.profiles.username.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium text-sm">{comment.profiles.username}</span>
-                    <span className="text-xs text-gray-500">
-                      {new Date(comment.created_at).toLocaleDateString()}
-                    </span>
-                    {user?.id === comment.profiles.id && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                            <MoreVertical className="h-3 w-3" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => handleDeleteComment(comment.id)}
-                            className="text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                    {comment.content}
-                  </p>
-                </div>
+                <CommentItem
+                  comment={comment}
+                  user={user}
+                  editingComment={editingComment}
+                  editContent={editContent}
+                  setEditContent={setEditContent}
+                  updating={updating}
+                  onEdit={handleEditComment}
+                  onCancelEdit={handleCancelEdit}
+                  onSaveEdit={handleSaveEdit}
+                  onDelete={handleDeleteComment}
+                />
               </motion.div>
             ))
           )}

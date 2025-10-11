@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Streak ID is required' }, { status: 400 })
     }
 
-    // Verify the streak exists and is public or user has access
+    // Verify the streak exists and user has access
     const { data: streak, error: streakError } = await supabase
       .from('streaks')
       .select('is_public, created_by')
@@ -42,7 +42,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Streak not found' }, { status: 404 })
     }
 
-    if (!streak.is_public && streak.created_by !== user.id) {
+    // Check if user has access to view comments on this streak
+    let hasAccess = false
+    
+    // Owner can always view comments
+    if (streak.created_by === user.id) {
+      hasAccess = true
+    }
+    // Public streaks can be viewed by anyone
+    else if (streak.is_public) {
+      hasAccess = true
+    }
+    // For private streaks, check if user has joined
+    else {
+      const { data: userStreak } = await supabase
+        .from('user_streaks')
+        .select('id')
+        .eq('streak_id', streak_id)
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .single()
+      
+      hasAccess = !!userStreak
+    }
+
+    if (!hasAccess) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
@@ -87,7 +111,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = commentSchema.parse(body)
 
-    // Verify the streak exists and is public or user has access
+    // Verify the streak exists and user has access
     const { data: streak, error: streakError } = await supabase
       .from('streaks')
       .select('is_public, created_by')
@@ -98,7 +122,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Streak not found' }, { status: 404 })
     }
 
-    if (!streak.is_public && streak.created_by !== user.id) {
+    // Check if user has access to comment on this streak
+    let hasAccess = false
+    
+    // Owner can always comment
+    if (streak.created_by === user.id) {
+      hasAccess = true
+    }
+    // Public streaks can be commented on by anyone
+    else if (streak.is_public) {
+      hasAccess = true
+    }
+    // For private streaks, check if user has joined
+    else {
+      const { data: userStreak } = await supabase
+        .from('user_streaks')
+        .select('id')
+        .eq('streak_id', validatedData.streak_id)
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .single()
+      
+      hasAccess = !!userStreak
+    }
+
+    if (!hasAccess) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
