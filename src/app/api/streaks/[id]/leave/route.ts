@@ -43,10 +43,10 @@ export async function POST(
       }, { status: 400 })
     }
 
-    // Check if user is the creator of the streak
+    // Get the streak details to check if it's public or private
     const { data: streak, error: streakError } = await supabase
       .from('streaks')
-      .select('created_by')
+      .select('created_by, is_public')
       .eq('id', streakId)
       .single()
 
@@ -57,11 +57,14 @@ export async function POST(
       }, { status: 404 })
     }
 
-    if (streak.created_by === user.id) {
+    // For private streaks, creators cannot leave - they must delete
+    if (!streak.is_public && streak.created_by === user.id) {
       return NextResponse.json({ 
-        error: 'Streak creators cannot leave their own streaks. You can delete the streak instead.' 
+        error: 'You cannot leave your own private streak. You can delete it instead.' 
       }, { status: 400 })
     }
+
+    // For public streaks, even creators can leave (they'll be handled by auto-cleanup)
 
     // Deactivate user streak instead of deleting (soft delete)
     const { error: updateError } = await supabase
@@ -76,6 +79,31 @@ export async function POST(
         error: 'Failed to leave streak',
         details: updateError.message 
       }, { status: 500 })
+    }
+
+    // For public streaks, check if this was the last active member
+    if (streak.is_public) {
+      // Check if there are any other active members
+      const { data: activeMembers, error: membersError } = await supabase
+        .from('user_streaks')
+        .select('id')
+        .eq('streak_id', streakId)
+        .eq('is_active', true)
+
+      if (!membersError && (!activeMembers || activeMembers.length === 0)) {
+        // This was the last active member, update last_member_left_at
+        const { error: updateStreakError } = await supabase
+          .from('streaks')
+          .update({ 
+            last_member_left_at: new Date().toISOString()
+          })
+          .eq('id', streakId)
+
+        if (updateStreakError) {
+          // Log error but don't fail the request
+          console.error('Failed to update last_member_left_at:', updateStreakError)
+        }
+      }
     }
 
     return NextResponse.json({ 

@@ -25,6 +25,8 @@ export default function StreakDetailPage() {
   const streakId = params.id as string
   const [showLeaveDialog, setShowLeaveDialog] = useState(false)
   const [leavingStreak, setLeavingStreak] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deletingStreak, setDeletingStreak] = useState(false)
   
   // Use our custom hooks for API calls
   const { data: streakData, loading: streakLoading, error: streakError, refetch: refetchStreak } = useStreak(streakId)
@@ -131,6 +133,36 @@ export default function StreakDetailPage() {
     }
   }
 
+  const handleDeleteStreak = async () => {
+    setDeletingStreak(true)
+    try {
+      const response = await fetch(`/api/streaks/${streakId}/delete`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to delete streak')
+      }
+
+      toast.success('Streak deleted successfully')
+      setShowDeleteDialog(false)
+      
+      // Simple redirect with hard reload
+      setTimeout(() => {
+        window.location.href = '/my-streaks'
+      }, 1000)
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete streak. Please try again.')
+      console.error('Failed to delete streak:', error)
+    } finally {
+      setDeletingStreak(false)
+    }
+  }
+
   if (streakLoading) {
     return (
       <div className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
@@ -233,13 +265,23 @@ export default function StreakDetailPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem 
-                        onClick={() => setShowLeaveDialog(true)}
-                        className="text-red-600 focus:text-red-600"
-                      >
-                        <LogOut className="mr-2 h-4 w-4" />
-                        Leave Streak
-                      </DropdownMenuItem>
+                      {!streak?.is_public && streak?.created_by === userStreak?.user_id ? (
+                        <DropdownMenuItem 
+                          onClick={() => setShowDeleteDialog(true)}
+                          className="text-red-600 focus:text-red-600"
+                        >
+                          <LogOut className="mr-2 h-4 w-4" />
+                          Delete Streak
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem 
+                          onClick={() => setShowLeaveDialog(true)}
+                          className="text-red-600 focus:text-red-600"
+                        >
+                          <LogOut className="mr-2 h-4 w-4" />
+                          Leave Streak
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -554,6 +596,44 @@ export default function StreakDetailPage() {
                 <>
                   <LogOut className="mr-2 h-4 w-4" />
                   Leave Streak
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Streak Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Delete Streak</DialogTitle>
+            <DialogDescription className="text-red-700">
+              ⚠️ <strong>Warning:</strong> This action cannot be undone. You are about to permanently delete this private streak and all associated data including your progress, notes, and check-ins.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowDeleteDialog(false)}
+              disabled={deletingStreak}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteStreak}
+              disabled={deletingStreak}
+            >
+              {deletingStreak ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Delete Streak
                 </>
               )}
             </Button>
