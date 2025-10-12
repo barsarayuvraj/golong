@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Flame, Users, Calendar, CheckCircle, Plus, Trophy, Target, Settings, LogOut } from 'lucide-react'
+import { Flame, Users, Calendar, CheckCircle, Plus, Trophy, Target, Settings, LogOut, Pin, PinOff } from 'lucide-react'
 import Link from 'next/link'
 import { Streak, UserStreak, LeaderboardEntry } from '@/types/database'
 import { CommentsSection } from './comments-section'
@@ -27,6 +27,8 @@ export default function StreakDetailPage() {
   const [leavingStreak, setLeavingStreak] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deletingStreak, setDeletingStreak] = useState(false)
+  const [isPinned, setIsPinned] = useState(false)
+  const [pinningStreak, setPinningStreak] = useState(false)
   
   // Use our custom hooks for API calls
   const { data: streakData, loading: streakLoading, error: streakError, refetch: refetchStreak } = useStreak(streakId)
@@ -44,6 +46,13 @@ export default function StreakDetailPage() {
   // Extract leaderboard and stats data
   const leaderboard = leaderboardData?.leaderboard || []
   const stats = statsData?.stats || null
+
+  // Set pin state based on userStreak data
+  useEffect(() => {
+    if (userStreak) {
+      setIsPinned(!!userStreak.pinned_at)
+    }
+  }, [userStreak])
 
   const handleJoinStreak = async () => {
     try {
@@ -163,6 +172,63 @@ export default function StreakDetailPage() {
     }
   }
 
+  const handlePinStreak = async () => {
+    setPinningStreak(true)
+    try {
+      const response = await fetch(`/api/streaks/${streakId}/pin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to pin streak')
+      }
+
+      const result = await response.json()
+      setIsPinned(true)
+      toast.success(result.unpinnedOldest ? 'Streak pinned! (Oldest pinned streak was unpinned)' : 'Streak pinned successfully!')
+      
+      // Refetch streak data to get updated pin status
+      refetchStreak()
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to pin streak. Please try again.')
+      console.error('Failed to pin streak:', error)
+    } finally {
+      setPinningStreak(false)
+    }
+  }
+
+  const handleUnpinStreak = async () => {
+    setPinningStreak(true)
+    try {
+      const response = await fetch(`/api/streaks/${streakId}/unpin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to unpin streak')
+      }
+
+      setIsPinned(false)
+      toast.success('Streak unpinned successfully!')
+      
+      // Refetch streak data to get updated pin status
+      refetchStreak()
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to unpin streak. Please try again.')
+      console.error('Failed to unpin streak:', error)
+    } finally {
+      setPinningStreak(false)
+    }
+  }
+
   if (streakLoading) {
     return (
       <div className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
@@ -257,33 +323,56 @@ export default function StreakDetailPage() {
                     <Target className="mr-2 h-5 w-5" />
                     Your Progress
                   </CardTitle>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                        <Settings className="h-4 w-4" />
-                        <span className="sr-only">Streak options</span>
+                  <div className="flex items-center gap-1">
+                    {/* Pin/Unpin Button */}
+                    {userStreak && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-8 w-8 p-0"
+                        onClick={isPinned ? handleUnpinStreak : handlePinStreak}
+                        disabled={pinningStreak}
+                        title={isPinned ? 'Unpin streak' : 'Pin streak'}
+                      >
+                        {pinningStreak ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
+                        ) : isPinned ? (
+                          <Pin className="h-4 w-4 text-blue-600" style={{ transform: 'rotate(45deg)' }} />
+                        ) : (
+                          <Pin className="h-4 w-4" />
+                        )}
+                        <span className="sr-only">{isPinned ? 'Unpin streak' : 'Pin streak'}</span>
                       </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {!streak?.is_public && streak?.created_by === userStreak?.user_id ? (
-                        <DropdownMenuItem 
-                          onClick={() => setShowDeleteDialog(true)}
-                          className="text-red-600 focus:text-red-600"
-                        >
-                          <LogOut className="mr-2 h-4 w-4" />
-                          Delete Streak
-                        </DropdownMenuItem>
-                      ) : (
-                        <DropdownMenuItem 
-                          onClick={() => setShowLeaveDialog(true)}
-                          className="text-red-600 focus:text-red-600"
-                        >
-                          <LogOut className="mr-2 h-4 w-4" />
-                          Leave Streak
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                    )}
+                    {/* Settings Dropdown */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <Settings className="h-4 w-4" />
+                          <span className="sr-only">Streak options</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {!streak?.is_public && streak?.created_by === userStreak?.user_id ? (
+                          <DropdownMenuItem 
+                            onClick={() => setShowDeleteDialog(true)}
+                            className="text-red-600 focus:text-red-600"
+                          >
+                            <LogOut className="mr-2 h-4 w-4" />
+                            Delete Streak
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem 
+                            onClick={() => setShowLeaveDialog(true)}
+                            className="text-red-600 focus:text-red-600"
+                          >
+                            <LogOut className="mr-2 h-4 w-4" />
+                            Leave Streak
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">

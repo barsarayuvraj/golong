@@ -66,11 +66,12 @@ export async function POST(
 
     // For public streaks, even creators can leave (they'll be handled by auto-cleanup)
 
-    // Deactivate user streak instead of deleting (soft delete)
+    // Deactivate user streak and unpin it (soft delete)
     const { error: updateError } = await supabase
       .from('user_streaks')
       .update({ 
-        is_active: false
+        is_active: false,
+        pinned_at: null
       })
       .eq('id', userStreak.id)
 

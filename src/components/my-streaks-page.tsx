@@ -21,7 +21,8 @@ import {
   Star,
   Crown,
   Sparkles,
-  Activity
+  Activity,
+  Pin
 } from 'lucide-react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
@@ -35,6 +36,7 @@ interface UserStreak {
   last_checkin_date: string | null
   joined_at: string
   is_active: boolean
+  pinned_at: string | null
   streak: {
     id: string
     title: string
@@ -123,6 +125,7 @@ export default function MyStreaksPage() {
         `)
         .eq('user_id', userId)
         .eq('is_active', true)
+        .order('pinned_at', { ascending: false, nullsFirst: false })
         .order('joined_at', { ascending: false })
 
       if (error) {
@@ -387,7 +390,12 @@ export default function MyStreaksPage() {
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
-                            <CardTitle className="text-lg mb-1">{userStreak.streak.title}</CardTitle>
+                            <div className="flex items-center gap-2 mb-1">
+                              <CardTitle className="text-lg">{userStreak.streak.title}</CardTitle>
+                              {userStreak.pinned_at && (
+                                <Pin className="h-4 w-4 text-blue-600" style={{ transform: 'rotate(45deg)' }} title="Pinned streak" />
+                              )}
+                            </div>
                             <CardDescription className="text-sm">
                               {userStreak.streak.description}
                             </CardDescription>
