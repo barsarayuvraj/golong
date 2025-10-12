@@ -21,6 +21,25 @@ const createStreakSchema = z.object({
   category: z.string().optional(),
   is_public: z.boolean(),
   tags: z.array(z.string()),
+  set_duration: z.boolean().default(false),
+  start_date: z.string().optional(),
+  end_date: z.string().optional(),
+  duration: z.string().optional(),
+}).refine((data) => {
+  if (!data.set_duration) return true
+  
+  if (data.duration && !data.start_date && !data.end_date) return true
+  
+  if (data.start_date && data.end_date) {
+    const startDate = new Date(data.start_date)
+    const endDate = new Date(data.end_date)
+    return endDate >= startDate
+  }
+  
+  return true
+}, {
+  message: "End date must be same as or after start date",
+  path: ["end_date"]
 })
 
 type CreateStreakForm = z.infer<typeof createStreakSchema>
@@ -45,6 +64,13 @@ const POPULAR_TAGS = [
   'art', 'music', 'language', 'business'
 ]
 
+const DURATION_OPTIONS = [
+  { value: '7', label: '7 days' },
+  { value: '30', label: '30 days' },
+  { value: '90', label: '90 days' },
+  { value: '365', label: '1 year' },
+]
+
 export default function CreateStreakForm() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -59,6 +85,10 @@ export default function CreateStreakForm() {
       category: '',
       is_public: true,
       tags: [],
+      set_duration: false,
+      start_date: '',
+      end_date: '',
+      duration: '30',
     },
   })
 
@@ -174,6 +204,95 @@ export default function CreateStreakForm() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Duration Selection */}
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="set_duration" 
+                  checked={form.watch('set_duration')}
+                  onCheckedChange={(checked) => {
+                    form.setValue('set_duration', checked as boolean)
+                    if (checked) {
+                      // Set default start date to today and end date to 30 days from now
+                      const today = new Date().toISOString().split('T')[0]
+                      const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+                      form.setValue('start_date', today)
+                      form.setValue('end_date', thirtyDaysFromNow)
+                    } else {
+                      form.setValue('start_date', '')
+                      form.setValue('end_date', '')
+                    }
+                  }}
+                />
+                <Label htmlFor="set_duration" className="text-sm font-medium">
+                  Set streak duration
+                </Label>
+              </div>
+
+              {form.watch('set_duration') && (
+                <div className="ml-6 space-y-4 border-l-2 border-gray-200 pl-4">
+                  {/* Duration Preset */}
+                  <div className="space-y-2">
+                    <Label>Quick Duration</Label>
+                    <Select 
+                      value={form.watch('duration')} 
+                      onValueChange={(value) => {
+                        form.setValue('duration', value)
+                        const days = parseInt(value)
+                        const startDate = form.getValues('start_date') || new Date().toISOString().split('T')[0]
+                        const endDate = new Date(new Date(startDate).getTime() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+                        form.setValue('end_date', endDate)
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select duration" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DURATION_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Custom Dates */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="start_date">Start Date</Label>
+                      <Input
+                        id="start_date"
+                        type="date"
+                        value={form.watch('start_date')}
+                        min={new Date().toISOString().split('T')[0]}
+                        onChange={(e) => {
+                          form.setValue('start_date', e.target.value)
+                          // If duration is set, update end date
+                          const duration = form.getValues('duration')
+                          if (duration && e.target.value) {
+                            const days = parseInt(duration)
+                            const endDate = new Date(new Date(e.target.value).getTime() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+                            form.setValue('end_date', endDate)
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="end_date">End Date</Label>
+                      <Input
+                        id="end_date"
+                        type="date"
+                        value={form.watch('end_date')}
+                        min={form.watch('start_date') || new Date().toISOString().split('T')[0]}
+                        onChange={(e) => form.setValue('end_date', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Tags */}

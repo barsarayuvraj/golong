@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase-server'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
@@ -13,7 +13,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const streakId = params.id
+    const { id: streakId } = await params
 
     // Verify the streak exists and is public
     const { data: streak, error: streakError } = await supabase
@@ -185,6 +185,38 @@ export async function GET(
           }
         })
       }
+    }
+
+    // 5. Recent activity log entries (last 10) - for streak modifications
+    const { data: recentActivitiesLog } = await supabase
+      .from('activity_log')
+      .select(`
+        id,
+        activity_type,
+        description,
+        created_at,
+        profiles!inner(
+          id,
+          username,
+          display_name,
+          avatar_url
+        )
+      `)
+      .eq('streak_id', streakId)
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    if (recentActivitiesLog) {
+      recentActivitiesLog.forEach(activity => {
+        activities.push({
+          id: `activity_${activity.id}`,
+          type: 'activity',
+          user: activity.profiles,
+          timestamp: activity.created_at,
+          action: activity.description,
+          activity_type: activity.activity_type
+        })
+      })
     }
 
     // Sort all activities by timestamp (most recent first) and take top 10

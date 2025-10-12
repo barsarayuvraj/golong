@@ -8,6 +8,8 @@ const createStreakSchema = z.object({
   category: z.string().optional(),
   is_public: z.boolean().default(true),
   tags: z.array(z.string()).default([]),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 })
 
 export async function GET(request: NextRequest) {
@@ -101,6 +103,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = createStreakSchema.parse(body)
 
+    // Set default dates if not provided
+    const now = new Date()
+    const oneYearFromNow = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000)
+    
+    const startDate = validatedData.start_date ? new Date(validatedData.start_date + 'T00:00:00.000Z') : now
+    const endDate = validatedData.end_date ? new Date(validatedData.end_date + 'T23:59:59.999Z') : oneYearFromNow
+
     // Create the streak
     const { data: streak, error: streakError } = await supabase
       .from('streaks')
@@ -111,6 +120,8 @@ export async function POST(request: NextRequest) {
         is_public: validatedData.is_public,
         tags: validatedData.tags,
         created_by: user.id,
+        start_date: startDate.toISOString(),
+        end_date: endDate.toISOString(),
       })
       .select()
       .single()

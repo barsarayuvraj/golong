@@ -7,9 +7,11 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Progress } from '@/components/ui/progress'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Flame, Users, Calendar, CheckCircle, Plus, Trophy, Target, Settings, LogOut, Pin, PinOff } from 'lucide-react'
+import { Flame, Users, Calendar, CheckCircle, Plus, Trophy, Target, Settings, LogOut, Pin, PinOff, Edit3 } from 'lucide-react'
 import Link from 'next/link'
 import { Streak, UserStreak, LeaderboardEntry } from '@/types/database'
 import { CommentsSection } from './comments-section'
@@ -29,6 +31,9 @@ export default function StreakDetailPage() {
   const [deletingStreak, setDeletingStreak] = useState(false)
   const [isPinned, setIsPinned] = useState(false)
   const [pinningStreak, setPinningStreak] = useState(false)
+  const [showEditDatesDialog, setShowEditDatesDialog] = useState(false)
+  const [editingDates, setEditingDates] = useState(false)
+  const [newEndDate, setNewEndDate] = useState('')
   
   // Use our custom hooks for API calls
   const { data: streakData, loading: streakLoading, error: streakError, refetch: refetchStreak } = useStreak(streakId)
@@ -229,6 +234,42 @@ export default function StreakDetailPage() {
     }
   }
 
+  const handleEditDates = async () => {
+    if (!newEndDate) {
+      toast.error('Please select an end date')
+      return
+    }
+
+    setEditingDates(true)
+    try {
+      const response = await fetch(`/api/streaks/${streakId}/edit-dates`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          end_date: new Date(newEndDate + 'T23:59:59.999Z').toISOString()
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update streak end date')
+      }
+
+      toast.success('Streak end date updated successfully!')
+      setShowEditDatesDialog(false)
+      
+      // Refetch streak data to get updated dates
+      refetchStreak()
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update streak end date. Please try again.')
+      console.error('Failed to update streak end date:', error)
+    } finally {
+      setEditingDates(false)
+    }
+  }
+
   if (streakLoading) {
     return (
       <div className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
@@ -278,6 +319,16 @@ export default function StreakDetailPage() {
         <div className="flex items-start justify-between mb-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">{streak.title}</h1>
+            
+            {/* Show start date for future streaks */}
+            {streak.start_date && new Date(streak.start_date) > new Date() && (
+              <div className="mb-3">
+                <Badge variant="outline" className="text-blue-600 border-blue-600">
+                  Starting on {new Date(streak.start_date).toLocaleDateString()}
+                </Badge>
+              </div>
+            )}
+            
             <div className="flex items-center gap-2 mb-4">
               <Badge variant="secondary">{streak.category}</Badge>
               <span className="text-sm text-gray-600">
@@ -353,6 +404,18 @@ export default function StreakDetailPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        {/* Edit End Date option for private streak creators */}
+                        {!streak?.is_public && streak?.created_by === userStreak?.user_id && (
+                          <DropdownMenuItem 
+                            onClick={() => {
+                              setNewEndDate(streak?.end_date ? new Date(streak.end_date).toISOString().split('T')[0] : '')
+                              setShowEditDatesDialog(true)
+                            }}
+                          >
+                            <Edit3 className="mr-2 h-4 w-4" />
+                            Edit End Date
+                          </DropdownMenuItem>
+                        )}
                         {!streak?.is_public && streak?.created_by === userStreak?.user_id ? (
                           <DropdownMenuItem 
                             onClick={() => setShowDeleteDialog(true)}
@@ -376,6 +439,18 @@ export default function StreakDetailPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Display streak date range */}
+                {streak.start_date && streak.end_date && (
+                  <div className="bg-gray-50 rounded-lg p-3 border">
+                    <div className="text-sm text-gray-600 mb-1">Streak Duration</div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium">Start: {new Date(streak.start_date).toLocaleDateString()}</span>
+                      <span className="text-gray-400">→</span>
+                      <span className="font-medium">End: {new Date(streak.end_date).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                )}
+                
                 <div className="grid grid-cols-2 gap-4">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-blue-600">{userStreak.current_streak_days}</div>
@@ -390,7 +465,7 @@ export default function StreakDetailPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Progress to 30 days</span>
-                    <span>{Math.min(100, (userStreak.current_streak_days / 30) * 100)}%</span>
+                    <span>{Math.min(100, (userStreak.current_streak_days / 30) * 100).toFixed(1)}%</span>
                   </div>
                   <Progress value={Math.min(100, (userStreak.current_streak_days / 30) * 100)} />
                 </div>
@@ -723,6 +798,55 @@ export default function StreakDetailPage() {
                 <>
                   <LogOut className="mr-2 h-4 w-4" />
                   Delete Streak
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit End Date Dialog */}
+      <Dialog open={showEditDatesDialog} onOpenChange={setShowEditDatesDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Streak End Date</DialogTitle>
+            <DialogDescription>
+              Update the end date for your private streak. The end date cannot be in the past.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="end-date">End Date</Label>
+              <Input
+                id="end-date"
+                type="date"
+                value={newEndDate}
+                min={new Date().toISOString().split('T')[0]}
+                onChange={(e) => setNewEndDate(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowEditDatesDialog(false)}
+              disabled={editingDates}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleEditDates}
+              disabled={editingDates}
+            >
+              {editingDates ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <Edit3 className="mr-2 h-4 w-4" />
+                  Update End Date
                 </>
               )}
             </Button>

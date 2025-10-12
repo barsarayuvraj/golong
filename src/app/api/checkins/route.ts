@@ -82,16 +82,42 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = checkinSchema.parse(body)
 
-    // Verify the user owns this user_streak
+    // Verify the user owns this user_streak and get streak details
     const { data: userStreak, error: userStreakError } = await supabase
       .from('user_streaks')
-      .select('*')
+      .select(`
+        *,
+        streaks!inner(
+          id,
+          title,
+          start_date,
+          end_date
+        )
+      `)
       .eq('id', validatedData.user_streak_id)
       .eq('user_id', user.id)
       .single()
 
     if (userStreakError || !userStreak) {
       return NextResponse.json({ error: 'User streak not found' }, { status: 404 })
+    }
+
+    // Check if check-in date is not before streak start date
+    const checkinDate = new Date(validatedData.checkin_date)
+    const streakStartDate = new Date(userStreak.streaks.start_date)
+    
+    if (checkinDate < streakStartDate) {
+      return NextResponse.json({ 
+        error: `Cannot check in before streak start date (${streakStartDate.toLocaleDateString()})` 
+      }, { status: 400 })
+    }
+
+    // Check if check-in date is not after streak end date
+    const streakEndDate = new Date(userStreak.streaks.end_date)
+    if (checkinDate > streakEndDate) {
+      return NextResponse.json({ 
+        error: `Cannot check in after streak end date (${streakEndDate.toLocaleDateString()})` 
+      }, { status: 400 })
     }
 
     // Check if checkin already exists for this date
