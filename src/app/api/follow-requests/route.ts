@@ -34,6 +34,8 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (action === 'accept') {
+      console.log(`[FOLLOW-REQUESTS-API] Accepting follow request with ID: ${request_id}`)
+      
       // Accept the follow request
       const { error: updateError } = await supabase
         .from('follow_requests')
@@ -74,9 +76,12 @@ export async function PATCH(request: NextRequest) {
         }
       }
 
+      console.log(`[FOLLOW-REQUESTS-API] Successfully accepted follow request with ID: ${request_id}`)
       return NextResponse.json({ message: 'Follow request accepted successfully' })
     } else {
       // Reject the follow request by deleting it (allows new requests later)
+      console.log(`[FOLLOW-REQUESTS-API] Rejecting follow request with ID: ${request_id}`)
+      
       const { error: deleteError } = await supabase
         .from('follow_requests')
         .delete()
@@ -87,6 +92,7 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to reject follow request' }, { status: 500 })
       }
 
+      console.log(`[FOLLOW-REQUESTS-API] Successfully deleted follow request with ID: ${request_id}`)
       return NextResponse.json({ message: 'Follow request rejected successfully' })
     }
   } catch (error) {

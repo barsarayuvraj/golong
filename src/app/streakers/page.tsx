@@ -166,8 +166,11 @@ export default function StreakersPage() {
 
       toast.success('Follow request accepted!')
       
-      // Refresh follow requests
-      loadFollowRequests()
+      // Remove the accepted request from local state immediately
+      setFollowRequests(prev => prev.filter(request => request.id !== requestId))
+      
+      // Also refresh from server to ensure consistency
+      await loadFollowRequests()
     } catch (error: any) {
       console.error('Error accepting follow request:', error)
       toast.error(error.message || 'Failed to accept follow request')
@@ -195,8 +198,8 @@ export default function StreakersPage() {
 
       toast.success('Follow request rejected')
       
-      // Refresh follow requests
-      loadFollowRequests()
+      // Remove the rejected request from local state immediately
+      setFollowRequests(prev => prev.filter(request => request.id !== requestId))
     } catch (error: any) {
       console.error('Error rejecting follow request:', error)
       toast.error(error.message || 'Failed to reject follow request')
@@ -227,7 +230,7 @@ export default function StreakersPage() {
 
       if (error) throw error
 
-      const followingUsers = data.map(f => ({
+      const followingUsers = data.map((f: any) => ({
         ...f.profiles,
         follow_status: 'following' as const
       }))
@@ -262,7 +265,7 @@ export default function StreakersPage() {
 
       if (error) throw error
 
-      const followerUsers = data.map(f => ({
+      const followerUsers = data.map((f: any) => ({
         ...f.profiles,
         follow_status: 'not_following' as const
       }))
@@ -279,39 +282,46 @@ export default function StreakersPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data, error } = await supabase
+      // First, get the follow requests
+      const { data: requestsData, error: requestsError } = await supabase
         .from('follow_requests')
-        .select(`
-          id,
-          requester_id,
-          target_id,
-          status,
-          created_at,
-          profiles!requester_id (
-            id,
-            username,
-            display_name,
-            avatar_url
-          )
-        `)
+        .select('id, requester_id, target_id, status, created_at')
         .eq('target_id', user.id)
         .eq('status', 'pending')
 
-      if (error) throw error
+      if (requestsError) throw requestsError
 
-      // Transform the data to match the expected structure
-      const transformedData = data?.map(request => ({
-        id: request.id,
-        requester_id: request.requester_id,
-        target_id: request.target_id,
-        status: request.status,
-        created_at: request.created_at,
-        requester: request.profiles
-      })) || []
+      if (!requestsData || requestsData.length === 0) {
+        setFollowRequests([])
+        return
+      }
+
+      // Get the requester profiles
+      const requesterIds = requestsData.map(req => req.requester_id)
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url')
+        .in('id', requesterIds)
+
+      if (profilesError) throw profilesError
+
+      // Combine the data
+      const transformedData = requestsData.map(request => {
+        const profile = profilesData?.find(p => p.id === request.requester_id)
+        return {
+          id: request.id,
+          requester_id: request.requester_id,
+          target_id: request.target_id,
+          status: request.status,
+          created_at: request.created_at,
+          requester: profile
+        }
+      })
 
       setFollowRequests(transformedData)
     } catch (error) {
       console.error('Error loading follow requests:', error)
+      setFollowRequests([])
     }
   }
 

@@ -31,14 +31,7 @@ export default function Navbar() {
       setUser(user)
       
       if (user) {
-        // Fetch user profile to get role
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .single()
-        
-        setUserRole(profile?.role || 'user')
+        setUserRole('user')
       }
       
       setLoading(false)
