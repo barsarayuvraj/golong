@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Bell, Check, Flame, MessageCircle, Heart, Trophy, X, Zap } from 'lucide-react'
+import { Bell, Check, Flame, MessageCircle, Heart, Trophy, X, Zap, UserPlus, UserCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase-client'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { useRealtimeNotifications } from '@/lib/use-realtime'
@@ -14,7 +14,7 @@ import { toast } from 'sonner'
 
 interface Notification {
   id: string
-  type: 'streak_reminder' | 'milestone' | 'comment' | 'like' | 'follow'
+  type: 'streak_reminder' | 'milestone' | 'comment' | 'like' | 'follow' | 'follow_request'
   title: string
   message: string
   data?: any
@@ -110,6 +110,10 @@ export function NotificationsDropdown() {
         return <MessageCircle className="h-4 w-4 text-blue-500" />
       case 'like':
         return <Heart className="h-4 w-4 text-red-500" />
+      case 'follow':
+        return <UserCheck className="h-4 w-4 text-green-500" />
+      case 'follow_request':
+        return <UserPlus className="h-4 w-4 text-purple-500" />
       default:
         return <Bell className="h-4 w-4 text-gray-500" />
     }

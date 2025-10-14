@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { User, Mail, Bell, Shield, Save, Upload, X } from 'lucide-react'
+import { User, Mail, Bell, Shield, Save, Upload, X, Lock, Eye } from 'lucide-react'
 import { createClient } from '@/lib/supabase-client'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { motion } from 'framer-motion'
@@ -40,6 +40,15 @@ export default function SettingsPage() {
     bio: '',
     email_notifications: true,
     streak_reminders: true,
+    is_private: false,
+  })
+  const [originalFormData, setOriginalFormData] = useState({
+    username: '',
+    display_name: '',
+    bio: '',
+    email_notifications: true,
+    streak_reminders: true,
+    is_private: false,
   })
 
   const supabase = createClient()
@@ -61,13 +70,16 @@ export default function SettingsPage() {
           .single()
 
         setProfile(profileData)
-        setFormData({
+        const initialFormData = {
           username: profileData?.username || '',
           display_name: profileData?.display_name || '',
           bio: profileData?.bio || '',
           email_notifications: true, // Default values
           streak_reminders: true,
-        })
+          is_private: profileData?.is_private || false,
+        }
+        setFormData(initialFormData)
+        setOriginalFormData(initialFormData)
       }
     } catch (error) {
       console.error('Error fetching user data:', error)
@@ -196,6 +208,18 @@ export default function SettingsPage() {
     }
   }
 
+  // Check if there are any changes to save
+  const hasChanges = () => {
+    return (
+      formData.username !== originalFormData.username ||
+      formData.display_name !== originalFormData.display_name ||
+      formData.bio !== originalFormData.bio ||
+      formData.email_notifications !== originalFormData.email_notifications ||
+      formData.streak_reminders !== originalFormData.streak_reminders ||
+      formData.is_private !== originalFormData.is_private
+    )
+  }
+
   const handleSave = async () => {
     if (!user) return
 
@@ -207,12 +231,16 @@ export default function SettingsPage() {
           username: formData.username,
           display_name: formData.display_name,
           bio: formData.bio,
+          is_private: formData.is_private,
           updated_at: new Date().toISOString(),
         })
         .eq('id', user.id)
 
       if (error) throw error
 
+      // Update original form data to reflect saved state
+      setOriginalFormData({ ...formData })
+      
       toast.success('Settings saved successfully!')
     } catch (error) {
       console.error('Error saving settings:', error)
@@ -472,14 +500,45 @@ export default function SettingsPage() {
                 Privacy Settings
               </CardTitle>
               <CardDescription>
-                Control your privacy and data settings
+                Control who can see your profile and content
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="text-sm text-gray-600">
-                <p>• Your profile information is visible to other users</p>
-                <p>• Your streak progress is shared with streak participants</p>
-                <p>• You can make streaks private when creating them</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    {formData.is_private ? (
+                      <Lock className="h-5 w-5 text-orange-500" />
+                    ) : (
+                      <Eye className="h-5 w-5 text-green-500" />
+                    )}
+                    <div>
+                      <Label htmlFor="is_private">Private Profile</Label>
+                      <p className="text-sm text-gray-500">
+                        {formData.is_private 
+                          ? 'Your profile is private. Users need to send follow requests to see your content.'
+                          : 'Your profile is public. Anyone can see your profile and public streaks.'
+                        }
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <Switch
+                  id="is_private"
+                  checked={formData.is_private}
+                  onCheckedChange={(checked) => 
+                    setFormData({ ...formData, is_private: checked })
+                  }
+                />
+              </div>
+
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                <h4 className="text-sm font-medium mb-2">How Privacy Works:</h4>
+                <div className="text-sm text-gray-600 space-y-1">
+                  <p><strong>Public Profile:</strong> Anyone can find and view your profile, see your public streaks, and follow you directly.</p>
+                  <p><strong>Private Profile:</strong> Users can find you but must send a follow request. You can accept or reject requests.</p>
+                  <p><strong>Streak Privacy:</strong> Individual streaks can still be made private regardless of your profile setting.</p>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -488,8 +547,8 @@ export default function SettingsPage() {
           <div className="flex justify-end">
             <Button 
               onClick={handleSave} 
-              disabled={saving}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              disabled={saving || !hasChanges()}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="mr-2 h-4 w-4" />
               {saving ? 'Saving...' : 'Save Settings'}

@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu'
-import { LogOut, User as UserIcon, Settings, Flame, Plus, Shield, Sparkles, BarChart3, Trophy, Calendar, Bell, Award, Users, Download, Code, Menu, X, Target, Zap } from 'lucide-react'
+import { LogOut, User as UserIcon, Settings, Flame, Plus, Shield, Sparkles, BarChart3, Trophy, Calendar, Bell, Award, Users, Download, Code, Menu, X, Target, Zap, UserPlus } from 'lucide-react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { NotificationsDropdown } from './notifications-dropdown'
@@ -115,6 +115,16 @@ export default function Navbar() {
                     <Button variant="ghost" size="sm" className="flex items-center gap-1 bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 text-green-700 border border-green-200">
                       <Target className="h-4 w-4" />
                       <span className="hidden xl:inline">My Streaks</span>
+                    </Button>
+                  </Link>
+                </motion.div>
+
+                {/* Streakers - Social Following */}
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Link href="/streakers">
+                    <Button variant="ghost" size="sm" className="flex items-center gap-1 bg-gradient-to-r from-pink-50 to-rose-50 hover:from-pink-100 hover:to-rose-100 text-pink-700 border border-pink-200">
+                      <UserPlus className="h-4 w-4" />
+                      <span className="hidden xl:inline">Streakers</span>
                     </Button>
                   </Link>
                 </motion.div>
@@ -312,6 +322,14 @@ export default function Navbar() {
                     <div className="flex items-center gap-2 text-green-700">
                       <Target className="h-4 w-4" />
                       My Streaks
+                    </div>
+                  </Link>
+
+                  {/* Streakers - Social Following */}
+                  <Link href="/streakers" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100 bg-pink-50 border border-pink-200">
+                    <div className="flex items-center gap-2 text-pink-700">
+                      <UserPlus className="h-4 w-4" />
+                      Streakers
                     </div>
                   </Link>
 
