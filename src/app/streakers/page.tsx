@@ -48,8 +48,69 @@ export default function StreakersPage() {
   const [followRequests, setFollowRequests] = useState<FollowRequest[]>([])
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('search')
+  const [userStats, setUserStats] = useState({
+    followersCount: 0,
+    followingCount: 0
+  })
+  const [followingSearchQuery, setFollowingSearchQuery] = useState('')
+  const [followersSearchQuery, setFollowersSearchQuery] = useState('')
 
   const supabase = createClient()
+
+  // Filter functions for following and followers
+  const getFilteredFollowing = () => {
+    if (!followingSearchQuery.trim()) return following
+    return following.filter(user => 
+      user.username.toLowerCase().includes(followingSearchQuery.toLowerCase()) ||
+      (user.display_name && user.display_name.toLowerCase().includes(followingSearchQuery.toLowerCase()))
+    )
+  }
+
+  const getFilteredFollowers = () => {
+    if (!followersSearchQuery.trim()) return followers
+    return followers.filter(user => 
+      user.username.toLowerCase().includes(followersSearchQuery.toLowerCase()) ||
+      (user.display_name && user.display_name.toLowerCase().includes(followersSearchQuery.toLowerCase()))
+    )
+  }
+
+  // Load user's own stats
+  const loadUserStats = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      let followersCount = 0
+      let followingCount = 0
+
+      try {
+        const { count: followersCountData } = await supabase
+          .from('follows')
+          .select('*', { count: 'exact', head: true })
+          .eq('following_id', user.id)
+        followersCount = followersCountData || 0
+      } catch (error) {
+        console.log('Error getting followers count:', error)
+      }
+
+      try {
+        const { count: followingCountData } = await supabase
+          .from('follows')
+          .select('*', { count: 'exact', head: true })
+          .eq('follower_id', user.id)
+        followingCount = followingCountData || 0
+      } catch (error) {
+        console.log('Error getting following count:', error)
+      }
+
+      setUserStats({
+        followersCount,
+        followingCount
+      })
+    } catch (error) {
+      console.error('Error loading user stats:', error)
+    }
+  }
 
   // Search users
   const searchUsers = async (query: string) => {
@@ -108,6 +169,9 @@ export default function StreakersPage() {
           ? { ...u, follow_status: result.type === 'request_sent' ? 'request_sent' : 'following' }
           : u
       ))
+
+      // Refresh user stats
+      loadUserStats()
     } catch (error: any) {
       console.error('Error following user:', error)
       toast.error(error.message || 'Failed to follow user')
@@ -139,6 +203,9 @@ export default function StreakersPage() {
         u.id === userId ? { ...u, follow_status: 'not_following' } : u
       ))
       setFollowing(prev => prev.filter(u => u.id !== userId))
+
+      // Refresh user stats
+      loadUserStats()
     } catch (error: any) {
       console.error('Error unfollowing user:', error)
       toast.error(error.message || 'Failed to unfollow user')
@@ -171,6 +238,9 @@ export default function StreakersPage() {
       
       // Also refresh from server to ensure consistency
       await loadFollowRequests()
+      
+      // Refresh user stats (followers count increased)
+      loadUserStats()
     } catch (error: any) {
       console.error('Error accepting follow request:', error)
       toast.error(error.message || 'Failed to accept follow request')
@@ -230,10 +300,53 @@ export default function StreakersPage() {
 
       if (error) throw error
 
-      const followingUsers = data.map((f: any) => ({
-        ...f.profiles,
-        follow_status: 'following' as const
-      }))
+      // Get stats for each user
+      const followingUsers = await Promise.all(
+        data.map(async (f: any) => {
+          const userProfile = f.profiles
+          let followersCount = 0
+          let followingCount = 0
+          let streaksCount = 0
+
+          try {
+            const { count: followersCountData } = await supabase
+              .from('follows')
+              .select('*', { count: 'exact', head: true })
+              .eq('following_id', userProfile.id)
+            followersCount = followersCountData || 0
+          } catch (error) {
+            console.log('Error getting followers count:', error)
+          }
+
+          try {
+            const { count: followingCountData } = await supabase
+              .from('follows')
+              .select('*', { count: 'exact', head: true })
+              .eq('follower_id', userProfile.id)
+            followingCount = followingCountData || 0
+          } catch (error) {
+            console.log('Error getting following count:', error)
+          }
+
+          try {
+            const { count: streaksCountData } = await supabase
+              .from('streaks')
+              .select('*', { count: 'exact', head: true })
+              .eq('created_by', userProfile.id)
+            streaksCount = streaksCountData || 0
+          } catch (error) {
+            console.log('Error getting streaks count:', error)
+          }
+
+          return {
+            ...userProfile,
+            followers_count: followersCount,
+            following_count: followingCount,
+            streaks_count: streaksCount,
+            follow_status: 'following' as const
+          }
+        })
+      )
 
       setFollowing(followingUsers)
     } catch (error) {
@@ -265,10 +378,53 @@ export default function StreakersPage() {
 
       if (error) throw error
 
-      const followerUsers = data.map((f: any) => ({
-        ...f.profiles,
-        follow_status: 'not_following' as const
-      }))
+      // Get stats for each user
+      const followerUsers = await Promise.all(
+        data.map(async (f: any) => {
+          const userProfile = f.profiles
+          let followersCount = 0
+          let followingCount = 0
+          let streaksCount = 0
+
+          try {
+            const { count: followersCountData } = await supabase
+              .from('follows')
+              .select('*', { count: 'exact', head: true })
+              .eq('following_id', userProfile.id)
+            followersCount = followersCountData || 0
+          } catch (error) {
+            console.log('Error getting followers count:', error)
+          }
+
+          try {
+            const { count: followingCountData } = await supabase
+              .from('follows')
+              .select('*', { count: 'exact', head: true })
+              .eq('follower_id', userProfile.id)
+            followingCount = followingCountData || 0
+          } catch (error) {
+            console.log('Error getting following count:', error)
+          }
+
+          try {
+            const { count: streaksCountData } = await supabase
+              .from('streaks')
+              .select('*', { count: 'exact', head: true })
+              .eq('created_by', userProfile.id)
+            streaksCount = streaksCountData || 0
+          } catch (error) {
+            console.log('Error getting streaks count:', error)
+          }
+
+          return {
+            ...userProfile,
+            followers_count: followersCount,
+            following_count: followingCount,
+            streaks_count: streaksCount,
+            follow_status: 'not_following' as const
+          }
+        })
+      )
 
       setFollowers(followerUsers)
     } catch (error) {
@@ -296,8 +452,8 @@ export default function StreakersPage() {
         return
       }
 
-      // Get the requester profiles
-      const requesterIds = requestsData.map(req => req.requester_id)
+            // Get the requester profiles
+            const requesterIds = requestsData.map((req: any) => req.requester_id)
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('id, username, display_name, avatar_url')
@@ -305,9 +461,9 @@ export default function StreakersPage() {
 
       if (profilesError) throw profilesError
 
-      // Combine the data
-      const transformedData = requestsData.map(request => {
-        const profile = profilesData?.find(p => p.id === request.requester_id)
+            // Combine the data
+            const transformedData = requestsData.map((request: any) => {
+              const profile = profilesData?.find((p: any) => p.id === request.requester_id)
         return {
           id: request.id,
           requester_id: request.requester_id,
@@ -331,9 +487,10 @@ export default function StreakersPage() {
     if (activeTab === 'requests') loadFollowRequests()
   }, [activeTab])
 
-  // Load follow requests on component mount to show counter
+  // Load follow requests and user stats on component mount
   useEffect(() => {
     loadFollowRequests()
+    loadUserStats()
   }, [])
 
   useEffect(() => {
@@ -349,6 +506,24 @@ export default function StreakersPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Streakers</h1>
         <p className="text-gray-600">Discover and connect with other streak enthusiasts</p>
+      </div>
+
+      {/* User Stats Summary */}
+      <div className="mb-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-center space-x-12">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-gray-900">{userStats.followersCount}</div>
+                <div className="text-sm text-gray-600">Followers</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-gray-900">{userStats.followingCount}</div>
+                <div className="text-sm text-gray-600">Following</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -460,9 +635,19 @@ export default function StreakersPage() {
         </TabsContent>
 
         <TabsContent value="following" className="space-y-4">
-          {following.length > 0 ? (
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Search your following..."
+              value={followingSearchQuery}
+              onChange={(e) => setFollowingSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
+          {getFilteredFollowing().length > 0 ? (
             <div className="grid gap-4">
-              {following.map((user) => (
+              {getFilteredFollowing().map((user) => (
                 <Card key={user.id}>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
@@ -490,6 +675,11 @@ export default function StreakersPage() {
                           {user.bio && (
                             <p className="text-sm text-gray-500 mt-1">{user.bio}</p>
                           )}
+                          <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                            <span>{user.streaks_count || 0} streaks</span>
+                            <span>{user.followers_count || 0} followers</span>
+                            <span>{user.following_count || 0} following</span>
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -512,19 +702,35 @@ export default function StreakersPage() {
                 </Card>
               ))}
             </div>
-          ) : (
+          ) : following.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
               <p>You're not following anyone yet</p>
               <p className="text-sm">Search for users to follow!</p>
             </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <Search className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <p>No users found matching "{followingSearchQuery}"</p>
+              <p className="text-sm">Try a different search term</p>
+            </div>
           )}
         </TabsContent>
 
         <TabsContent value="followers" className="space-y-4">
-          {followers.length > 0 ? (
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Search your followers..."
+              value={followersSearchQuery}
+              onChange={(e) => setFollowersSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
+          {getFilteredFollowers().length > 0 ? (
             <div className="grid gap-4">
-              {followers.map((user) => (
+              {getFilteredFollowers().map((user) => (
                 <Card key={user.id}>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
@@ -552,6 +758,11 @@ export default function StreakersPage() {
                           {user.bio && (
                             <p className="text-sm text-gray-500 mt-1">{user.bio}</p>
                           )}
+                          <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                            <span>{user.streaks_count || 0} streaks</span>
+                            <span>{user.followers_count || 0} followers</span>
+                            <span>{user.following_count || 0} following</span>
+                          </div>
                         </div>
                       </div>
                       <Link href={`/profile/${user.username}`}>
@@ -564,11 +775,17 @@ export default function StreakersPage() {
                 </Card>
               ))}
             </div>
-          ) : (
+          ) : followers.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
               <p>No followers yet</p>
               <p className="text-sm">Create public streaks to get discovered!</p>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <Search className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <p>No users found matching "{followersSearchQuery}"</p>
+              <p className="text-sm">Try a different search term</p>
             </div>
           )}
         </TabsContent>
