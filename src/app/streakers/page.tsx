@@ -102,10 +102,10 @@ export default function StreakersPage() {
         toast.success('Following user!')
       }
 
-      // Update search results
+      // Update search results based on actual API response
       setSearchResults(prev => prev.map(u => 
         u.id === userId 
-          ? { ...u, follow_status: isPrivate ? 'request_sent' : 'following' }
+          ? { ...u, follow_status: result.type === 'request_sent' ? 'request_sent' : 'following' }
           : u
       ))
     } catch (error: any) {

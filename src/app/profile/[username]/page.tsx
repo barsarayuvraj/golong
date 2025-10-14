@@ -524,10 +524,17 @@ export default function UserProfilePage() {
             <p className="text-gray-600 mb-4">
               This user has a private profile. Send a follow request to see their content.
             </p>
-            <Button onClick={followUser} disabled={followLoading}>
-              <UserPlus className="h-4 w-4 mr-1" />
-              Send Follow Request
-            </Button>
+            {profile.follow_status === 'request_sent' ? (
+              <Button variant="outline" disabled>
+                <Clock className="h-4 w-4 mr-1" />
+                Request Sent
+              </Button>
+            ) : (
+              <Button onClick={followUser} disabled={followLoading}>
+                <UserPlus className="h-4 w-4 mr-1" />
+                Send Follow Request
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (

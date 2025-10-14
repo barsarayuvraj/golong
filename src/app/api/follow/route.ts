@@ -24,10 +24,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Cannot follow yourself' }, { status: 400 })
     }
 
-    // Check if target user exists
+    // Check if target user exists and get privacy setting
     const { data: targetUser, error: userError } = await supabase
       .from('profiles')
-      .select('id')
+      .select('id, is_private')
       .eq('id', target_user_id)
       .single()
 
@@ -35,19 +35,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Default to public profile until privacy is set up
-    const isPrivate = false
+    const isPrivate = targetUser.is_private || false
 
     // Check if already following (with error handling)
     let existingFollow = null
     try {
-      const { data: existingFollowData } = await supabase
+      const { data: existingFollowData, error: followCheckError } = await supabase
         .from('follows')
         .select('id')
         .eq('follower_id', user.id)
         .eq('following_id', target_user_id)
         .single()
-      existingFollow = existingFollowData
+      
+      if (followCheckError && followCheckError.code !== 'PGRST116') {
+        console.log('Error checking follows:', followCheckError)
+      } else {
+        existingFollow = existingFollowData
+      }
     } catch (error) {
       console.log('Follows table not available yet:', error)
     }
@@ -59,14 +63,19 @@ export async function POST(request: NextRequest) {
     // Check if there's a pending follow request (with error handling)
     let existingRequest = null
     try {
-      const { data: existingRequestData } = await supabase
+      const { data: existingRequestData, error: requestCheckError } = await supabase
         .from('follow_requests')
         .select('id')
         .eq('requester_id', user.id)
         .eq('target_id', target_user_id)
         .eq('status', 'pending')
         .single()
-      existingRequest = existingRequestData
+      
+      if (requestCheckError && requestCheckError.code !== 'PGRST116') {
+        console.log('Error checking follow requests:', requestCheckError)
+      } else {
+        existingRequest = existingRequestData
+      }
     } catch (error) {
       console.log('Follow requests table not available yet:', error)
     }
@@ -88,6 +97,12 @@ export async function POST(request: NextRequest) {
 
         if (requestError) {
           console.error('Error creating follow request:', requestError)
+          
+          // Handle duplicate key constraint (already sent request)
+          if (requestError.code === '23505') {
+            return NextResponse.json({ error: 'Follow request already sent' }, { status: 400 })
+          }
+          
           return NextResponse.json({ error: 'Failed to send follow request' }, { status: 500 })
         }
 
@@ -111,6 +126,12 @@ export async function POST(request: NextRequest) {
 
         if (followError) {
           console.error('Error creating follow:', followError)
+          
+          // Handle duplicate key constraint (already following)
+          if (followError.code === '23505') {
+            return NextResponse.json({ error: 'Already following this user' }, { status: 400 })
+          }
+          
           return NextResponse.json({ error: 'Failed to follow user' }, { status: 500 })
         }
 

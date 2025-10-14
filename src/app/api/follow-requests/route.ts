@@ -76,17 +76,14 @@ export async function PATCH(request: NextRequest) {
 
       return NextResponse.json({ message: 'Follow request accepted successfully' })
     } else {
-      // Reject the follow request
-      const { error: updateError } = await supabase
+      // Reject the follow request by deleting it (allows new requests later)
+      const { error: deleteError } = await supabase
         .from('follow_requests')
-        .update({ 
-          status: 'rejected',
-          responded_at: new Date().toISOString()
-        })
+        .delete()
         .eq('id', request_id)
 
-      if (updateError) {
-        console.error('Error rejecting follow request:', updateError)
+      if (deleteError) {
+        console.error('Error rejecting follow request:', deleteError)
         return NextResponse.json({ error: 'Failed to reject follow request' }, { status: 500 })
       }
 
