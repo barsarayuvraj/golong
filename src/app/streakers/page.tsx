@@ -159,10 +159,10 @@ export default function StreakersPage() {
         }),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to accept follow request')
-      }
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || 'Failed to accept follow request')
+    }
 
       toast.success('Follow request accepted!')
       
@@ -299,7 +299,17 @@ export default function StreakersPage() {
 
       if (error) throw error
 
-      setFollowRequests(data)
+      // Transform the data to match the expected structure
+      const transformedData = data?.map(request => ({
+        id: request.id,
+        requester_id: request.requester_id,
+        target_id: request.target_id,
+        status: request.status,
+        created_at: request.created_at,
+        requester: request.profiles
+      })) || []
+
+      setFollowRequests(transformedData)
     } catch (error) {
       console.error('Error loading follow requests:', error)
     }
@@ -310,6 +320,11 @@ export default function StreakersPage() {
     if (activeTab === 'followers') loadFollowers()
     if (activeTab === 'requests') loadFollowRequests()
   }, [activeTab])
+
+  // Load follow requests on component mount to show counter
+  useEffect(() => {
+    loadFollowRequests()
+  }, [])
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -331,7 +346,9 @@ export default function StreakersPage() {
           <TabsTrigger value="search">Search</TabsTrigger>
           <TabsTrigger value="following">Following</TabsTrigger>
           <TabsTrigger value="followers">Followers</TabsTrigger>
-          <TabsTrigger value="requests">Requests</TabsTrigger>
+          <TabsTrigger value="requests">
+            Requests{followRequests.length > 0 && ` (${followRequests.length})`}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="search" className="space-y-4">

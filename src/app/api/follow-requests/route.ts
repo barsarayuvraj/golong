@@ -48,17 +48,30 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to accept follow request' }, { status: 500 })
       }
 
-      // Create the follow relationship
+      // Create the follow relationship (with conflict handling)
       const { error: followError } = await supabase
         .from('follows')
         .insert({
           follower_id: followRequest.requester_id,
           following_id: followRequest.target_id
         })
+        .select()
 
       if (followError) {
         console.error('Error creating follow relationship:', followError)
-        // Don't fail the request if follow creation fails, as the trigger should handle this
+        console.error('Follow request data:', followRequest)
+        
+        // Check if it's a duplicate key error (already following)
+        if (followError.code === '23505') {
+          console.log('Follow relationship already exists, continuing...')
+          // This is okay - the relationship already exists
+        } else {
+          return NextResponse.json({ 
+            error: 'Failed to create follow relationship', 
+            details: followError.message,
+            code: followError.code
+          }, { status: 500 })
+        }
       }
 
       return NextResponse.json({ message: 'Follow request accepted successfully' })
