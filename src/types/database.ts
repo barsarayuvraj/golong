@@ -82,7 +82,7 @@ export interface Like {
 export interface Notification {
   id: string
   user_id: string
-  type: 'streak_reminder' | 'milestone' | 'comment' | 'like' | 'follow'
+  type: 'streak_reminder' | 'milestone' | 'comment' | 'like' | 'follow' | 'follow_request'
   title: string
   message: string
   data?: any
