@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu'
-import { LogOut, User as UserIcon, Settings, Flame, Plus, Shield, Sparkles, BarChart3, Trophy, Calendar, Bell, Award, Users, Download, Code, Menu, X, Target, Zap, UserPlus } from 'lucide-react'
+import { LogOut, User as UserIcon, Settings, Flame, Plus, Shield, Sparkles, BarChart3, Trophy, Calendar, Bell, Award, Users, Download, Code, Menu, X, Target, Zap, UserPlus, MessageCircle } from 'lucide-react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { NotificationsDropdown } from './notifications-dropdown'
@@ -142,10 +142,10 @@ export default function Navbar() {
                 </motion.div>
 
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                  <Link href="/achievements">
+                  <Link href="/messages">
                     <Button variant="ghost" size="sm" className="flex items-center gap-1 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 text-purple-700 border border-purple-200">
-                      <Award className="h-4 w-4" />
-                      <span className="hidden xl:inline">Achievements</span>
+                      <MessageCircle className="h-4 w-4" />
+                      <span className="hidden xl:inline">Messages</span>
                     </Button>
                   </Link>
                 </motion.div>
@@ -212,6 +212,13 @@ export default function Navbar() {
                       <Link href="/widgets" className="flex items-center">
                         <Code className="mr-2 h-4 w-4" />
                         Widgets
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/achievements" className="flex items-center">
+                        <Award className="mr-2 h-4 w-4" />
+                        Achievements
                       </Link>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -339,10 +346,10 @@ export default function Navbar() {
                       Groups
                     </div>
                   </Link>
-                  <Link href="/achievements" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100 bg-purple-50 border border-purple-200">
+                  <Link href="/messages" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100 bg-purple-50 border border-purple-200">
                     <div className="flex items-center gap-2 text-purple-700">
-                      <Award className="h-4 w-4" />
-                      Achievements
+                      <MessageCircle className="h-4 w-4" />
+                      Messages
                     </div>
                   </Link>
 
@@ -395,6 +402,12 @@ export default function Navbar() {
                       <div className="flex items-center gap-2">
                         <Code className="h-4 w-4" />
                         Widgets
+                      </div>
+                    </Link>
+                    <Link href="/achievements" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100">
+                      <div className="flex items-center gap-2">
+                        <Award className="h-4 w-4" />
+                        Achievements
                       </div>
                     </Link>
                   </div>
