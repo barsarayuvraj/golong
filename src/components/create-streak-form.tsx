@@ -118,17 +118,29 @@ export default function CreateStreakForm() {
     setMessage('')
 
     try {
-      // Mock API call - replace with actual Supabase call later
+      // Transform form data to match API schema
+      const apiData = {
+        title: data.title,
+        description: data.description,
+        category: data.category,
+        is_public: data.is_public,
+        tags: data.tags,
+      }
+
+      console.log('Sending data to API:', apiData)
+
       const response = await fetch('/api/streaks', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(apiData),
       })
 
       if (!response.ok) {
-        throw new Error('Failed to create streak')
+        const errorData = await response.json().catch(() => ({}))
+        console.error('API Error:', errorData)
+        throw new Error(errorData.error || `Failed to create streak (${response.status})`)
       }
 
       const result = await response.json()
@@ -142,6 +154,7 @@ export default function CreateStreakForm() {
       }, 1000)
 
     } catch (error: any) {
+      console.error('Error creating streak:', error)
       setMessage(error.message || 'Failed to create streak')
     } finally {
       setLoading(false)

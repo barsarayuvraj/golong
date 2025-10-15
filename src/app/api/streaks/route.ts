@@ -8,8 +8,6 @@ const createStreakSchema = z.object({
   category: z.string().optional(),
   is_public: z.boolean().default(true),
   tags: z.array(z.string()).default([]),
-  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 })
 
 export async function GET(request: NextRequest) {
@@ -103,13 +101,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = createStreakSchema.parse(body)
 
-    // Set default dates if not provided
-    const now = new Date()
-    const oneYearFromNow = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000)
-    
-    const startDate = validatedData.start_date ? new Date(validatedData.start_date + 'T00:00:00.000Z') : now
-    const endDate = validatedData.end_date ? new Date(validatedData.end_date + 'T23:59:59.999Z') : oneYearFromNow
-
     // Create the streak
     const { data: streak, error: streakError } = await supabase
       .from('streaks')
@@ -120,8 +111,6 @@ export async function POST(request: NextRequest) {
         is_public: validatedData.is_public,
         tags: validatedData.tags,
         created_by: user.id,
-        start_date: startDate.toISOString(),
-        end_date: endDate.toISOString(),
       })
       .select()
       .single()
@@ -132,7 +121,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create user_streak entry (user joins their own streak)
-    const { error: userStreakError } = await supabase
+    const { data: userStreak, error: userStreakError } = await supabase
       .from('user_streaks')
       .insert({
         user_id: user.id,
@@ -141,14 +130,17 @@ export async function POST(request: NextRequest) {
         longest_streak_days: 0,
         is_active: true,
       })
+      .select()
+      .single()
 
     if (userStreakError) {
       console.error('Error creating user streak:', userStreakError)
-      // Don't fail the request, just log the error
+      return NextResponse.json({ error: 'Failed to join streak' }, { status: 500 })
     }
 
     return NextResponse.json({ 
       id: streak.id,
+      user_streak_id: userStreak.id,
       message: 'Streak created successfully' 
     })
 
