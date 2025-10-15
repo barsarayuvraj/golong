@@ -50,7 +50,7 @@ function CommentItem({
   onSaveEdit: (commentId: string) => void
   onDelete: (commentId: string) => void
 }) {
-  const relativeTime = useRelativeTime(comment.created_at)
+  const relativeTime = useRelativeTime(comment.created_at || comment.updated_at)
   
   return (
     <div className="flex gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">

@@ -57,7 +57,7 @@ function NoteItem({
   onSaveEdit: (noteId: string) => void
   onDelete: (noteId: string) => void
 }) {
-  const relativeTime = useRelativeTime(note.created_at)
+  const relativeTime = useRelativeTime(note.created_at || note.updated_at)
   
   return (
     <div className="flex gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">

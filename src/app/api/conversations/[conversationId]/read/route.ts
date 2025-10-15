@@ -15,7 +15,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { conversationId } = params
+    const { conversationId } = await params
 
     // Verify user has access to this conversation
     const { data: conversation, error: conversationError } = await supabase

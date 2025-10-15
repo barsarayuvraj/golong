@@ -4,8 +4,13 @@ import { formatDistanceToNow, parseISO } from 'date-fns'
  * Formats a date string to Instagram-style relative time
  * Examples: "2 seconds ago", "5 minutes ago", "2 hours ago", "3 days ago"
  */
-export function formatRelativeTime(dateString: string): string {
+export function formatRelativeTime(dateString: string | null | undefined): string {
   try {
+    // Handle null, undefined, or empty string
+    if (!dateString || typeof dateString !== 'string' || dateString.trim() === '') {
+      return 'some time ago'
+    }
+    
     const date = parseISO(dateString)
     const now = new Date()
     
@@ -41,8 +46,13 @@ export function formatRelativeTime(dateString: string): string {
  * Alternative implementation using date-fns formatDistanceToNow
  * This provides more natural language formatting
  */
-export function formatRelativeTimeNatural(dateString: string): string {
+export function formatRelativeTimeNatural(dateString: string | null | undefined): string {
   try {
+    // Handle null, undefined, or empty string
+    if (!dateString || typeof dateString !== 'string' || dateString.trim() === '') {
+      return 'some time ago'
+    }
+    
     const date = parseISO(dateString)
     return formatDistanceToNow(date, { addSuffix: true })
   } catch (error) {

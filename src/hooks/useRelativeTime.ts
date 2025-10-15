@@ -5,7 +5,7 @@ import { formatRelativeTime } from '@/lib/time-utils'
  * Hook that provides real-time updating relative time formatting
  * Updates every minute to keep the time display current
  */
-export function useRelativeTime(dateString: string): string {
+export function useRelativeTime(dateString: string | null | undefined): string {
   const [relativeTime, setRelativeTime] = useState(() => formatRelativeTime(dateString))
 
   useEffect(() => {

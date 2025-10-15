@@ -15,7 +15,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { conversationId } = params
+    const { conversationId } = await params
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
@@ -81,7 +81,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { conversationId } = params
+    const { conversationId } = await params
     const { content, messageType = 'text', encrypted = true } = await request.json()
 
     if (!content || content.trim().length === 0) {

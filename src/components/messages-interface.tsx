@@ -481,7 +481,7 @@ export function MessagesInterface() {
                           </div>
                           {conversation.lastMessage && (
                             <div className="text-xs text-gray-500">
-                              {formatRelativeTime(conversation.lastMessageAt)}
+                              {formatRelativeTime(conversation.lastMessageAt || conversation.lastMessage?.created_at)}
                             </div>
                           )}
                         </div>
@@ -583,7 +583,7 @@ export function MessagesInterface() {
                             >
                               <div className="text-sm">{message.content}</div>
                               <div className="text-xs mt-1 flex items-center gap-1 text-blue-600">
-                                <span>{formatRelativeTime(message.created_at)}</span>
+                                <span>{formatRelativeTime(message.created_at || message.updated_at)}</span>
                                 {message.sender_id === user?.id && (
                                   <div className="ml-1">
                                     {message.read_at ? (

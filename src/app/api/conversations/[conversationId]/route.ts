@@ -15,7 +15,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const conversationId = params.conversationId
+    const { conversationId } = await params
 
     // Verify the user is a participant in this conversation
     const { data: conversation, error: conversationError } = await supabase
