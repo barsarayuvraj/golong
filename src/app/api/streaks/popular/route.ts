@@ -3,7 +3,9 @@ import { createClient } from '@/lib/supabase-server'
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('Popular streaks API started')
     const supabase = await createClient()
+    console.log('Supabase client created')
     
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '12')
@@ -12,9 +14,12 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category') || ''
     const sortBy = searchParams.get('sortBy') || 'created_at'
 
+    console.log('Parameters:', { limit, offset, search, category, sortBy })
+
     // Get the current user (optional - for checking participation status)
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     const currentUserId = user?.id
+    console.log('User auth:', user ? 'authenticated' : 'anonymous')
 
     // Build the query
     let query = supabase
@@ -62,14 +67,24 @@ export async function GET(request: NextRequest) {
         break
     }
 
-    // Apply pagination
-    const { data: streaks, error: streaksError, count } = await query
-      .range(offset, offset + limit - 1)
+    // Apply pagination with timeout
+    console.log('Executing main query...')
+    const queryPromise = query.range(offset, offset + limit - 1)
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Query timeout')), 25000) // 25 second timeout
+    )
+    
+    const { data: streaks, error: streaksError, count } = await Promise.race([
+      queryPromise,
+      timeoutPromise
+    ]) as any
 
     if (streaksError) {
       console.error('Error fetching popular streaks:', streaksError)
       return NextResponse.json({ error: 'Failed to fetch popular streaks' }, { status: 500 })
     }
+    
+    console.log('Main query completed, fetched', streaks?.length || 0, 'streaks')
 
     // Get participant count for each streak
     const streakIds = streaks.map(s => s.id)
