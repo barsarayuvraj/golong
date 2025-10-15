@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "golong-supabase": {
+      "command": "node",
+      "args": ["/Users/yuvrajbarsara/golong/mcp-server/dist/index.js"],
+      "env": {
+        "SUPABASE_URL": "https://pepgldetpvaiwawmmxox.supabase.co",
+        "SUPABASE_SERVICE_ROLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlcGdsZGV0cHZhaXdhd21teG94Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDM3Mzk1NSwiZXhwIjoyMDc1OTQ5OTU1fQ.qg308rqUcyaTsa0KQsEejffhhv4bhxmBQWmZP4iyWss"
+      }
+    },
+    "source-supabase": {
+      "command": "node",
+      "args": ["/Users/yuvrajbarsara/golong/mcp-server-source/dist/index.js"],
+      "env": {
+        "SUPABASE_URL": "https://gzhccauxdtboxrurwogk.supabase.co",
+        "SUPABASE_SERVICE_ROLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6aGNjYXV4ZHRib3hydXJ3b2drIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTk1NDg5MiwiZXhwIjoyMDc1NTMwODkyfQ.mJLR6mNEMW2k2JryXdbKIO5qwTiDvK-is5j6oPMPUBk"
+      }
+    }
+  }
+}

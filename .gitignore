@@ -64,4 +64,4 @@ temp/
 
 # Build artifacts
 dist/
-build/
+build/.cursor/

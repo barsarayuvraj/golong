@@ -55,21 +55,21 @@ function CommentItem({
   return (
     <div className="flex gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
       <Avatar className="h-8 w-8">
-        <AvatarImage src={comment.profiles.avatar_url} />
+        <AvatarImage src={comment.profiles?.avatar_url} />
         <AvatarFallback>
-          {comment.profiles.username.charAt(0).toUpperCase()}
+          {comment.profiles?.username?.charAt(0).toUpperCase()}
         </AvatarFallback>
       </Avatar>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="font-medium text-sm">{comment.profiles.username}</span>
+          <span className="font-medium text-sm">{comment.profiles?.username}</span>
           <span className="text-xs text-gray-500">
             {relativeTime}
             {comment.updated_at !== comment.created_at && (
               <span className="ml-1 text-gray-400">(edited)</span>
             )}
           </span>
-          {user?.id === comment.profiles.id && (
+          {user?.id === comment.profiles?.id && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0">

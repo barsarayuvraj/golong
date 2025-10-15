@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "golong-supabase": {
+      "command": "node",
+      "args": ["/Users/yuvrajbarsara/golong/mcp-server/dist/index.js"],
+      "env": {
+        "SUPABASE_URL": "https://your-project-id.supabase.co",
+        "SUPABASE_SERVICE_ROLE_KEY": "your-service-role-key",
+        "MCP_SERVER_NAME": "golong-supabase-mcp-server",
+        "MCP_SERVER_VERSION": "1.0.0"
+      }
+    }
+  }
+}
+

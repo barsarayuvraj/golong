@@ -135,7 +135,7 @@ export function PopularStreaks({ currentUserId }: PopularStreaksProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {streaks.map((streak, index) => {
-        const isOwner = currentUserId === streak.profiles.id
+        const isOwner = currentUserId === streak.profiles?.id
         const colorClass = colorClasses[index % colorClasses.length]
         
         return (
@@ -174,7 +174,7 @@ export function PopularStreaks({ currentUserId }: PopularStreaksProps) {
                   
                   <div className="flex items-center gap-2 text-xs text-gray-500">
                     <User className="h-3 w-3" />
-                    <span>by {streak.profiles.display_name || streak.profiles.username}</span>
+                    <span>by {streak.profiles?.display_name || streak.profiles?.username}</span>
                   </div>
                   
                   <motion.div className="mt-4 space-y-2">

@@ -41,10 +41,10 @@ export async function GET(
 
     // Format the leaderboard data
     const leaderboard = participants?.map((participant, index) => ({
-      user_id: participant.profiles.id,
-      username: participant.profiles.username,
-      display_name: participant.profiles.display_name,
-      avatar_url: participant.profiles.avatar_url,
+      user_id: participant.profiles?.id,
+      username: participant.profiles?.username,
+      display_name: participant.profiles?.display_name,
+      avatar_url: participant.profiles?.avatar_url,
       current_streak_days: participant.current_streak_days,
       longest_streak_days: participant.longest_streak_days,
       last_checkin_date: participant.last_checkin_date,
